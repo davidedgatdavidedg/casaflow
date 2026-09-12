@@ -847,5 +847,10 @@ function arrotondaVoci<T extends { importo: number }>(voci: T[]): T[] {
 }
 
 function arrotonda(n: number): number {
-  return Math.round(n * 100) / 100;
+  // "+ 0" normalizza -0 a +0: -0 * frazione produce -0 (es. quando un
+  // importo di partenza è zero, come la tassazione della rendita
+  // figurativa), che supererebbe i confronti con toEqual/toBeCloseTo ma
+  // fallirebbe un confronto stretto (Object.is) con toBe(0). Sommare 0 a
+  // -0 in IEEE754 restituisce sempre +0.
+  return Math.round(n * 100) / 100 + 0;
 }

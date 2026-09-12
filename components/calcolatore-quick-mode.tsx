@@ -38,7 +38,6 @@ import {
 import { TARIFFA_TARI_DEFAULT_PER_MQ } from "@/lib/calcolo/tari";
 import { COSTO_CONDOMINIO_DEFAULT_PER_MQ } from "@/lib/calcolo/condominio";
 import type { TipoVenditore } from "@/lib/calcolo/tipi";
-import { IMMOBILI, type UnitaCatastaleTest } from "@/lib/calcolo/__fixtures__/immobili";
 import type { UnitaForm } from "@/lib/tipi-form";
 import { nuovaUnitaVuota, unitaCompletamenteVuota } from "@/lib/tipi-form";
 import UnitaCard from "@/components/unita-card";
@@ -62,23 +61,15 @@ const TASSA_ARCHIVIO_DEFAULT_UI = 35;
 const PERCENTUALE_MANUTENZIONE_ORDINARIA_UI = 1;
 const PERCENTUALE_MANUTENZIONE_STRAORDINARIA_UI = 0.3;
 
-type ChiaveImmobile = keyof typeof IMMOBILI;
-
-const OPZIONI_IMMOBILE_DEBUG: { chiave: ChiaveImmobile; etichetta: string }[] =
-  Object.entries(IMMOBILI).map(([chiave, immobile]) => ({
-    chiave: chiave as ChiaveImmobile,
-    etichetta: immobile.etichetta,
-  }));
-
-interface DefaultDaImmobile {
-  prezzoAcquisto?: number;
-  primaCasaRegistro?: boolean;
-  acquistoDa?: TipoVenditore;
-  importoMutuo?: number;
-  tassoMutuoPercentuale?: number;
-  durataMutuoAnni?: number;
-  dataAcquisto?: string;
-  speseIncassoPerRata?: number;
+/** Estratta come tipo con nome (invece di un object-literal inline
+ * dentro useState<...>) perché in un file .tsx un generico multi-riga
+ * con parentesi graffe genera ambiguità di parsing con il JSX — il
+ * compilatore arriva a scambiare useState per il suo overload a zero
+ * argomenti. */
+interface ImmobileSalvato {
+  id: string;
+  nome: string;
+  aggiornatoIl: Date;
 }
 
 const formatoEuro = new Intl.NumberFormat("it-IT", {
@@ -102,12 +93,6 @@ const formatoDataOra = new Intl.DateTimeFormat("it-IT", {
 
 const OGGI_ISO = new Date().toISOString().slice(0, 10);
 
-/** Selettore "Carica immobile di prova (debug)": nascosto ora che il
- * salvataggio personale (Clerk + Neon) copre lo stesso bisogno in modo
- * più completo. Logica e funzione caricaImmobileDebug restano intatte
- * — basta rimettere questa a true per farlo ricomparire. */
-const SELETTORE_DEBUG_VISIBILE = false;
-
 export default function CalcolatoreQuickMode() {
   const [prezzoAcquisto, setPrezzoAcquisto] = useState(0);
   const [primaCasaRegistro, setPrimaCasaRegistro] = useState(false);
@@ -129,9 +114,6 @@ export default function CalcolatoreQuickMode() {
       return nuovo;
     });
   }
-  const [defaultUnita, setDefaultUnita] = useState<UnitaCatastaleTest[] | null>(
-    null
-  );
 
   function aggiungiUnita() {
     setUnitaList((elenco) => [...elenco, nuovaUnitaVuota()]);
@@ -151,23 +133,6 @@ export default function CalcolatoreQuickMode() {
   function aggiornaUnita(id: string, patch: Partial<UnitaForm>) {
     setUnitaList((elenco) =>
       elenco.map((u) => (u.id === id ? { ...u, ...patch } : u))
-    );
-  }
-
-  function unitaModificata(indice: number, unita: UnitaForm): boolean {
-    const def = defaultUnita?.[indice];
-    if (!def) return false;
-    return (
-      def.comune !== unita.comune ||
-      def.categoriaCatastale !== unita.categoriaCatastale ||
-      def.renditaCatastale !== unita.renditaCatastale ||
-      (def.statoAbitativoImu ?? "affittata") !== unita.statoAbitativoImu ||
-      (def.metriQuadri ?? 0) !== unita.metriQuadri ||
-      String(def.aliquotaImuPersonalizzata ?? "") !==
-        unita.aliquotaImuPersonalizzata ||
-      (def.foglio ?? "") !== unita.foglio ||
-      (def.particella ?? "") !== unita.particella ||
-      (def.subalterno ?? "") !== unita.subalterno
     );
   }
 
@@ -227,16 +192,8 @@ export default function CalcolatoreQuickMode() {
   const [ristrutturazione, setRistrutturazione] = useState(0);
   const [arredamento, setArredamento] = useState(0);
 
-  const [immobileSelezionato, setImmobileSelezionato] = useState<
-    ChiaveImmobile | ""
-  >("");
-  const [defaultDaImmobile, setDefaultDaImmobile] =
-    useState<DefaultDaImmobile>({});
-
   // ─── Immobili salvati dall'utente (Neon + Clerk) ─────────────────────
-  const [immobiliSalvati, setImmobiliSalvati] = useState<
-    { id: string; nome: string; aggiornatoIl: Date }[]
-  >([]);
+  const [immobiliSalvati, setImmobiliSalvati] = useState<ImmobileSalvato[]>([]);
   const [idImmobileCorrente, setIdImmobileCorrente] = useState<string | null>(
     null
   );
@@ -307,7 +264,6 @@ export default function CalcolatoreQuickMode() {
     const unitaCaricate = dati.unitaList.map((u) => ({ ...u, id: crypto.randomUUID() }));
     setUnitaList(unitaCaricate);
     setUnitaCompresse(new Set(unitaCaricate.map((u) => u.id))); // parti con tutte le card compresse, espandi solo quelle da controllare
-    setDefaultUnita(null); // uno stato salvato non ha un "default fixture" di confronto
     setImportoMutuo(dati.importoMutuo);
     setTassoMutuoPercentuale(dati.tassoMutuoPercentuale);
     setDurataMutuoAnni(dati.durataMutuoAnni);
@@ -341,10 +297,6 @@ export default function CalcolatoreQuickMode() {
     setAssicurazionePersonalizzata(dati.assicurazionePersonalizzata ?? "");
     setRistrutturazione(dati.ristrutturazione ?? 0);
     setArredamento(dati.arredamento ?? 0);
-    // Un immobile caricato dai tuoi salvataggi non è un "immobile di prova":
-    // disattivo il selettore di debug per evitare confusione tra le due fonti.
-    setImmobileSelezionato("");
-    setDefaultDaImmobile({});
   }
 
   /** Riporta l'intero form ai valori di default — usata sia dal bottone
@@ -361,7 +313,6 @@ export default function CalcolatoreQuickMode() {
     // form già avviato, non per una pagina bianca da compilare da zero.
     setUnitaList([unitaCompletamenteVuota()]);
     setUnitaCompresse(new Set()); // parte espansa, essendo vuota non c'è nulla da "controllare"
-    setDefaultUnita(null);
 
     setImportoMutuo(0);
     setTassoMutuoPercentuale(0);
@@ -396,9 +347,6 @@ export default function CalcolatoreQuickMode() {
 
     setRistrutturazione(0);
     setArredamento(0);
-
-    setImmobileSelezionato("");
-    setDefaultDaImmobile({});
 
     setIdImmobileCorrente(null);
     setNomeSalvataggio("");
@@ -484,114 +432,6 @@ export default function CalcolatoreQuickMode() {
     setErroreSalvataggio(null);
     setMostraDialogoSalva(true);
   }
-
-  function caricaImmobileDebug(chiave: ChiaveImmobile | "") {
-    setImmobileSelezionato(chiave);
-    // Un esempio caricato dal debug non è un tuo salvataggio personale.
-    setIdImmobileCorrente(null);
-    setNomeSalvataggio("");
-    setUltimoSalvataggio(null);
-
-    if (!chiave) {
-      setDefaultDaImmobile({});
-      setDefaultUnita(null);
-      return;
-    }
-
-    const fixture = IMMOBILI[chiave];
-    const nuoviDefault: DefaultDaImmobile = {};
-
-    if (fixture.prezzoAcquisto !== undefined) {
-      setPrezzoAcquisto(fixture.prezzoAcquisto);
-      nuoviDefault.prezzoAcquisto = fixture.prezzoAcquisto;
-    }
-    if (fixture.primaCasa !== undefined) {
-      setPrimaCasaRegistro(fixture.primaCasa);
-      nuoviDefault.primaCasaRegistro = fixture.primaCasa;
-    }
-    if (fixture.acquistoDa !== undefined) {
-      setAcquistoDa(fixture.acquistoDa);
-      nuoviDefault.acquistoDa = fixture.acquistoDa;
-    }
-
-    const unitaCaricate = fixture.unita.map((u) => ({
-      id: crypto.randomUUID(),
-      etichetta: u.etichetta ?? "",
-      comune: u.comune,
-      categoriaCatastale: u.categoriaCatastale,
-      renditaCatastale: u.renditaCatastale,
-      statoAbitativoImu: u.statoAbitativoImu ?? "affittata",
-      metriQuadri: u.metriQuadri ?? 0,
-      aliquotaImuPersonalizzata:
-        u.aliquotaImuPersonalizzata !== undefined
-          ? String(u.aliquotaImuPersonalizzata * 100)
-          : "",
-      foglio: u.foglio ?? "",
-      particella: u.particella ?? "",
-      subalterno: u.subalterno ?? "",
-    }));
-    setUnitaList(unitaCaricate);
-    setUnitaCompresse(new Set(unitaCaricate.map((u) => u.id))); // parti con tutte le card compresse, espandi solo quelle da controllare
-    setDefaultUnita(fixture.unita);
-
-    if (fixture.importoMutuo !== undefined) {
-      setImportoMutuo(fixture.importoMutuo);
-      nuoviDefault.importoMutuo = fixture.importoMutuo;
-      if (fixture.tassoMutuoPercentuale !== undefined) {
-        setTassoMutuoPercentuale(fixture.tassoMutuoPercentuale);
-        nuoviDefault.tassoMutuoPercentuale = fixture.tassoMutuoPercentuale;
-      }
-      if (fixture.durataMutuoAnni !== undefined) {
-        setDurataMutuoAnni(fixture.durataMutuoAnni);
-        nuoviDefault.durataMutuoAnni = fixture.durataMutuoAnni;
-      }
-      if (fixture.speseIncassoPerRataMutuo !== undefined) {
-        setSpeseIncassoPerRata(fixture.speseIncassoPerRataMutuo);
-        nuoviDefault.speseIncassoPerRata = fixture.speseIncassoPerRataMutuo;
-      }
-    } else {
-      setImportoMutuo(0);
-      nuoviDefault.importoMutuo = 0;
-    }
-
-    // La data di acquisto è indipendente dal mutuo (che potrebbe non
-    // esserci affatto) — se la fixture ha una decorrenzaMutuo la usiamo
-    // come proxy della data di acquisto reale (storicamente coincidevano
-    // nelle fixture esistenti), altrimenti resta il default.
-    if (fixture.decorrenzaMutuo !== undefined) {
-      setDataAcquisto(fixture.decorrenzaMutuo);
-      nuoviDefault.dataAcquisto = fixture.decorrenzaMutuo;
-    }
-
-    setDefaultDaImmobile(nuoviDefault);
-  }
-
-  const modificato = {
-    prezzoAcquisto:
-      defaultDaImmobile.prezzoAcquisto !== undefined &&
-      defaultDaImmobile.prezzoAcquisto !== prezzoAcquisto,
-    primaCasaRegistro:
-      defaultDaImmobile.primaCasaRegistro !== undefined &&
-      defaultDaImmobile.primaCasaRegistro !== primaCasaRegistro,
-    acquistoDa:
-      defaultDaImmobile.acquistoDa !== undefined &&
-      defaultDaImmobile.acquistoDa !== acquistoDa,
-    importoMutuo:
-      defaultDaImmobile.importoMutuo !== undefined &&
-      defaultDaImmobile.importoMutuo !== importoMutuo,
-    tassoMutuoPercentuale:
-      defaultDaImmobile.tassoMutuoPercentuale !== undefined &&
-      defaultDaImmobile.tassoMutuoPercentuale !== tassoMutuoPercentuale,
-    durataMutuoAnni:
-      defaultDaImmobile.durataMutuoAnni !== undefined &&
-      defaultDaImmobile.durataMutuoAnni !== durataMutuoAnni,
-    dataAcquisto:
-      defaultDaImmobile.dataAcquisto !== undefined &&
-      defaultDaImmobile.dataAcquisto !== dataAcquisto,
-    speseIncassoPerRata:
-      defaultDaImmobile.speseIncassoPerRata !== undefined &&
-      defaultDaImmobile.speseIncassoPerRata !== speseIncassoPerRata,
-  };
 
   const etichettaRegimeAffitto =
     regimeFiscaleAffitto === "cedolareSecca"
@@ -834,27 +674,6 @@ export default function CalcolatoreQuickMode() {
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-            {SELETTORE_DEBUG_VISIBILE && process.env.NODE_ENV !== "production" && (
-              <label className="block text-sm sm:w-72">
-                <span className="mb-1.5 block text-[var(--muted)]">
-                  Carica immobile di prova (debug)
-                </span>
-                <select
-                  className={classiInput}
-                  value={immobileSelezionato}
-                  onChange={(e) =>
-                    caricaImmobileDebug(e.target.value as ChiaveImmobile | "")
-                  }
-                >
-                  <option value="">— nessuno —</option>
-                  {OPZIONI_IMMOBILE_DEBUG.map((opzione) => (
-                    <option key={opzione.chiave} value={opzione.chiave}>
-                      {opzione.etichetta}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
             <label className="flex items-center gap-2 whitespace-nowrap pb-2 text-sm">
               <input
                 type="checkbox"
@@ -958,13 +777,11 @@ export default function CalcolatoreQuickMode() {
             <Campo
               label="Prezzo di acquisto" infoId="prezzo-acquisto"
               unita="€"
-              modificato={modificato.prezzoAcquisto}
             >
               <InputNumero valore={prezzoAcquisto} onChange={setPrezzoAcquisto} />
             </Campo>
             <Campo
               label="Data di acquisto" infoId="data-acquisto"
-              modificato={modificato.dataAcquisto}
             >
               <input
                 className={classiInput}
@@ -979,11 +796,10 @@ export default function CalcolatoreQuickMode() {
             </Campo>
             <Campo
               label="Prima casa (ai fini registro)" infoId="prima-casa"
-              modificato={modificato.primaCasaRegistro}
             >
               <ToggleSiNo valore={primaCasaRegistro} onChange={setPrimaCasaRegistro} />
             </Campo>
-            <Campo label="Acquisto da" infoId="acquisto-da" modificato={modificato.acquistoDa}>
+            <Campo label="Acquisto da" infoId="acquisto-da">
               <select
                 className={classiInput}
                 value={acquistoDa}
@@ -1071,7 +887,7 @@ export default function CalcolatoreQuickMode() {
                   key={unita.id}
                   numero={indice + 1}
                   unita={unita}
-                  modificata={unitaModificata(indice, unita)}
+                  modificata={false}
                   rimovibile={unitaList.length > 1}
                   mostraElencoCompleto={modalitaAvanzata}
                   compressa={unitaCompresse.has(unita.id)}
@@ -1133,7 +949,6 @@ export default function CalcolatoreQuickMode() {
             <Campo
               label="Importo finanziato" infoId="importo-mutuo"
               unita="€ — 0 se non richiesto"
-              modificato={modificato.importoMutuo}
             >
               <InputNumero valore={importoMutuo} onChange={setImportoMutuo} />
             </Campo>
@@ -1143,7 +958,6 @@ export default function CalcolatoreQuickMode() {
                 <Campo
                   label="Tasso annuo" infoId="tasso-mutuo"
                   unita="%"
-                  modificato={modificato.tassoMutuoPercentuale}
                 >
                   <InputNumero
                     valore={tassoMutuoPercentuale}
@@ -1158,7 +972,6 @@ export default function CalcolatoreQuickMode() {
                 <Campo
                   label="Durata" infoId="durata-mutuo"
                   unita="anni"
-                  modificato={modificato.durataMutuoAnni}
                 >
                   <InputNumero
                     valore={durataMutuoAnni}
@@ -1180,7 +993,6 @@ export default function CalcolatoreQuickMode() {
                     <Campo
                       label="Spese incasso mutuo" infoId="spese-incasso-mutuo"
                       unita="€/rata"
-                      modificato={modificato.speseIncassoPerRata}
                     >
                       <InputNumero
                         valore={speseIncassoPerRata}
@@ -1508,4 +1320,3 @@ export default function CalcolatoreQuickMode() {
     </div>
   );
 }
-

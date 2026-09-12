@@ -19,7 +19,16 @@ function sommaCategoria(
     .reduce((s, v) => s + v.importo, 0);
 }
 
-function trova(voci: { descrizione: string }[], sottostringa: string) {
+/** Generica: preserva il tipo completo dell'elemento trovato (importo,
+ * data, categoria, ecc.), invece di restringerlo al solo campo
+ * `descrizione` dichiarato nel vincolo — altrimenti TypeScript tipizza
+ * il valore di ritorno di `find` in base al parametro dichiarato, non a
+ * quello reale con cui la funzione viene invocata, perdendo tutti gli
+ * altri campi anche quando la chiamata passa un array di VoceFlusso. */
+function trova<T extends { descrizione: string }>(
+  voci: T[],
+  sottostringa: string
+): T | undefined {
   return voci.find((v) => v.descrizione.includes(sottostringa));
 }
 
@@ -402,7 +411,7 @@ describe("Detrazioni fiscali (mediazione + interessi mutuo)", () => {
     );
   });
 
-  it("con abitazione principale: mediazione all'anno 1 (fisso), interessi mutuo differiti di un anno rispetto a quando maturano", () => {
+  it("con abitazione principale: mediazione e interessi mutuo dell'anno 0 arrivano entrambi nell'anno 1 (il differimento fiscale è sempre di un anno rispetto a quando maturano)", () => {
     const righe = calcolaFlussiCassa({
       ...baseConMutuo,
       immobileAbitazionePrincipale: true,
@@ -413,15 +422,25 @@ describe("Detrazioni fiscali (mediazione + interessi mutuo)", () => {
       annoZero.voci.some((v) => v.descrizione.startsWith("Detrazione"))
     ).toBe(false);
 
-    // Anno 1: la detrazione mediazione (fissa all'anno 1) — ma non
-    // ancora la detrazione sugli interessi dell'anno 1 stesso.
+    // Anno 1: sia la detrazione mediazione (sempre fissa all'anno 1) sia
+    // la detrazione sugli interessi maturati nell'anno 0 — in questa
+    // fixture data di acquisto e decorrenza del mutuo coincidono (1°
+    // gennaio), quindi l'anno 0 è già un anno solare PIENO di rate
+    // (12 mesi): il suo interesse matura interamente nell'anno 0 e si
+    // differisce, come da regola, all'anno successivo (anno 1), non
+    // all'anno 2.
     const annoUno = righe.find((r) => r.anno === 1)!;
     const mediazione = trova(annoUno.voci, "mediazione");
     expect(mediazione).toBeDefined();
     expect(mediazione!.importo).toBeCloseTo(190, 2); // tetto 1000€ * 19%
-    expect(trova(annoUno.voci, "interessi mutuo")).toBeUndefined();
 
-    // Anno 2: qui arriva la detrazione sugli interessi PAGATI nell'anno 1.
+    const interessiAnnoUno = trova(annoUno.voci, "interessi mutuo");
+    expect(interessiAnnoUno).toBeDefined();
+    expect(interessiAnnoUno!.importo).toBeGreaterThan(0);
+    expect(interessiAnnoUno!.importo).toBeLessThanOrEqual(760); // tetto 4000€ * 19%
+
+    // Anno 2: qui arriva la detrazione sugli interessi PAGATI nell'anno 1
+    // (anch'esso un anno solare pieno di rate, con lo stesso meccanismo).
     const annoDue = righe.find((r) => r.anno === 2)!;
     const interessiAnnoDue = trova(annoDue.voci, "interessi mutuo");
     expect(interessiAnnoDue).toBeDefined();

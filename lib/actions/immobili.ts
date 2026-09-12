@@ -19,7 +19,6 @@ export async function salvaImmobile(
 ): Promise<{ id: string }> {
   
   const { userId } = await auth();
-  console.log("DEBUG auth():", await auth());
   if (!userId) {
     throw new Error("Devi accedere per salvare un immobile.");
   }

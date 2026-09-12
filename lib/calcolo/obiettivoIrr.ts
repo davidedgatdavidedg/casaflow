@@ -61,6 +61,17 @@ function intervalloRicerca(
   }
 }
 
+const NUMERO_CAMPIONI_PER_DIREZIONE = 150;
+
+// Limite di ragionevolezza economica: un IRR trovato fuori da questo
+// intervallo è quasi certamente un artefatto numerico (l'IRR esplode
+// vicino a certi estremi del dominio, es. un prezzo di acquisto
+// vicinissimo a zero rende l'investimento iniziale trascurabile
+// rispetto ai ritorni, generando IRR di migliaia di punti percentuale
+// privi di significato economico) — non una soluzione vera.
+const IRR_MINIMO_SENSATO = -0.99;
+const IRR_MASSIMO_SENSATO = 5; // 500%
+
 /**
  * Trova il valore della leva scelta che fa raggiungere all'IRR il
  * target indicato, a parità di tutti gli altri parametri.
@@ -69,6 +80,19 @@ function intervalloRicerca(
  * richiama la simulazione centinaia di volte durante la ricerca, e le
  * Leve interne (che a loro volta fanno ~10 calcoli IRR ciascuna)
  * andrebbero sprecate a ogni iterazione — qui serve solo l'IRR finale.
+ *
+ * La ricerca parte SEMPRE dal valore attuale della leva e si espande
+ * in entrambe le direzioni (verso l'alto e verso il basso), scegliendo
+ * — tra le due — la soluzione più vicina al punto di partenza. Non
+ * scandaglia l'intervallo dall'estremo assoluto verso l'altro: un
+ * valore vicinissimo a zero (es. un prezzo di acquisto quasi nullo) può
+ * generare un IRR erratico ma comunque "sensato" secondo i soli limiti
+ * assoluti (-99%/+500%) — costi fissi indipendenti dal parametro
+ * perturbato (es. IMU e registro, calcolati sulla rendita catastale,
+ * non sul prezzo) dominano il flusso di cassa a quegli estremi. Cercare
+ * a partire dal valore attuale, anziché dall'estremo del dominio, evita
+ * di imbattersi per primi in un simile artefatto lontano dalla zona
+ * economicamente plausibile.
  */
 export function trovaValorePerTargetIrr(
   base: ParametriSimulazione,
@@ -78,28 +102,88 @@ export function trovaValorePerTargetIrr(
   const valoreAttuale = base[leva];
   const irrAttuale = calcolaSimulazione(base, { calcolaLeve: false }).irr;
 
+  // Un target fuori dai limiti di sensatezza economica (gli stessi
+  // usati per validare ogni soluzione trovata, vedi bisecaEValida) non
+  // può mai essere raggiunto da una soluzione valida, per definizione —
+  // meglio dichiararlo subito "non trovato" piuttosto che rischiare di
+  // imbattersi in un incrocio spurio (numericamente instabile) vicino
+  // agli estremi del dominio di ricerca, che soddisferebbe il target
+  // solo per un artefatto di campionamento, non per una soluzione
+  // economicamente reale.
+  if (irrTarget < IRR_MINIMO_SENSATO || irrTarget > IRR_MASSIMO_SENSATO) {
+    return { trovato: false, valoreTrovato: null, valoreAttuale, irrTarget, irrAttuale };
+  }
+
   function irrConValore(valore: number): number | null {
     return calcolaSimulazione({ ...base, [leva]: valore }, { calcolaLeve: false }).irr;
   }
 
   const [min, max] = intervalloRicerca(base, leva);
-  const NUMERO_CAMPIONI = 150;
-  const passo = (max - min) / NUMERO_CAMPIONI;
+  const scartoAttuale = scarto(irrAttuale, irrTarget);
 
-  // Limite di ragionevolezza economica: un IRR trovato fuori da questo
-  // intervallo è quasi certamente un artefatto numerico (l'IRR esplode
-  // vicino a certi estremi del dominio, es. un prezzo di acquisto
-  // vicinissimo a zero rende l'investimento iniziale trascurabile
-  // rispetto ai ritorni, generando IRR di migliaia di punti percentuale
-  // privi di significato economico) — non una soluzione vera.
-  const IRR_MINIMO_SENSATO = -0.99;
-  const IRR_MASSIMO_SENSATO = 5; // 500%
+  const versoLAlto = cercaDirezione(
+    valoreAttuale,
+    max,
+    scartoAttuale,
+    irrConValore,
+    irrTarget
+  );
+  const versoIlBasso = cercaDirezione(
+    valoreAttuale,
+    min,
+    scartoAttuale,
+    irrConValore,
+    irrTarget
+  );
 
-  let bassoX = min;
-  let bassoY = scarto(irrConValore(min), irrTarget);
+  const candidati = [versoLAlto, versoIlBasso].filter(
+    (v): v is number => v !== null
+  );
 
-  for (let i = 1; i <= NUMERO_CAMPIONI; i++) {
-    const altoXCandidato = min + i * passo;
+  if (candidati.length === 0) {
+    return { trovato: false, valoreTrovato: null, valoreAttuale, irrTarget, irrAttuale };
+  }
+
+  // Tra le due direzioni, tiene la soluzione più vicina al valore di
+  // partenza — la più plausibile, a parità di validità.
+  const valoreTrovato = candidati.reduce((migliore, candidato) =>
+    Math.abs(candidato - valoreAttuale) < Math.abs(migliore - valoreAttuale)
+      ? candidato
+      : migliore
+  );
+
+  return { trovato: true, valoreTrovato, valoreAttuale, irrTarget, irrAttuale };
+}
+
+/**
+ * Scandaglia da `origine` (il valore attuale della leva) verso
+ * `estremo`, in passi di ampiezza costante, cercando il PRIMO cambio di
+ * segno tra campioni consecutivi — poi lo raffina con bisezione. Non si
+ * ferma al primo cambio di segno trovato se la soluzione risultante non
+ * è economicamente sensata (vedi `bisecaEValida`): continua a
+ * scandagliare oltre quel punto instabile.
+ *
+ * Restituisce null se `estremo` coincide con `origine` (dominio nullo
+ * in questa direzione — es. una leva già al minimo del suo intervallo,
+ * come la ristrutturazione a 0€) o se non trova alcun cambio di segno
+ * sensato lungo l'intero percorso.
+ */
+function cercaDirezione(
+  origine: number,
+  estremo: number,
+  scartoOrigine: number,
+  irrConValore: (valore: number) => number | null,
+  irrTarget: number
+): number | null {
+  if (estremo === origine) return null;
+
+  const passo = (estremo - origine) / NUMERO_CAMPIONI_PER_DIREZIONE;
+
+  let bassoX = origine;
+  let bassoY = scartoOrigine;
+
+  for (let i = 1; i <= NUMERO_CAMPIONI_PER_DIREZIONE; i++) {
+    const altoXCandidato = origine + i * passo;
     const irrCandidato = irrConValore(altoXCandidato);
     const altoYCandidato = scarto(irrCandidato, irrTarget);
 
@@ -119,13 +203,7 @@ export function trovaValorePerTargetIrr(
         IRR_MASSIMO_SENSATO
       );
       if (risultatoBisezione !== null) {
-        return {
-          trovato: true,
-          valoreTrovato: risultatoBisezione,
-          valoreAttuale,
-          irrTarget,
-          irrAttuale,
-        };
+        return risultatoBisezione;
       }
       // Cambio di segno trovato ma l'IRR risultante non è economicamente
       // sensato (artefatto numerico) — non ci fermiamo qui, continuiamo
@@ -136,7 +214,7 @@ export function trovaValorePerTargetIrr(
     bassoY = altoYCandidato;
   }
 
-  return { trovato: false, valoreTrovato: null, valoreAttuale, irrTarget, irrAttuale };
+  return null;
 }
 
 /** Biseca nell'intervallo [a, b] e restituisce il valore trovato SOLO

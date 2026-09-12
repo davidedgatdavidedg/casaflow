@@ -230,7 +230,7 @@ export default async function FlussiCassaPage({ searchParams }: PageProps) {
             </Show>
 
             <Show when="signed-in">
-              <UserButton afterSignOutUrl="/" />
+              <UserButton />
             </Show>
           </div>
         </header>
