@@ -175,6 +175,17 @@ export default async function FlussiCassaPage({ searchParams }: PageProps) {
     ? new Date(params.ultimoSalvataggio)
     : null;
 
+  // Percorso completo di questa pagina, query string inclusa: se
+  // l'utente fa login da qui (componente server, niente usePathname),
+  // deve tornare esattamente su questi stessi flussi di cassa — non su
+  // /flussi-cassa "nudo", che senza parametri mostrerebbe "parametri
+  // insufficienti" e fargli perdere la vista che stava consultando.
+  const queryStringVoci = Object.entries(params)
+    .filter((voce): voce is [string, string] => voce[1] !== undefined)
+    .map(([chiave, valore]) => `${encodeURIComponent(chiave)}=${encodeURIComponent(valore)}`)
+    .join("&");
+  const percorsoCorrente = `/flussi-cassa${queryStringVoci ? `?${queryStringVoci}` : ""}`;
+
   return (
     <div className="min-h-screen bg-[var(--ink)] text-[var(--ink-text)]">
       <div className="sticky top-0 z-20 bg-[var(--ink)]">
@@ -222,7 +233,7 @@ export default async function FlussiCassaPage({ searchParams }: PageProps) {
             </div>
 
             <Show when="signed-out">
-              <SignInButton mode="modal">
+              <SignInButton mode="modal" forceRedirectUrl={percorsoCorrente}>
                 <button
                   type="button"
                   className="rounded-sm border border-[var(--brass)]/50 px-3 py-2 text-sm text-[var(--brass)] transition-colors hover:bg-[var(--brass)]/10"

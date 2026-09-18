@@ -33,7 +33,7 @@ export default async function NuovaValutazionePage() {
           </div>
 
           <Show when="signed-out">
-            <SignInButton mode="modal">
+            <SignInButton mode="modal" forceRedirectUrl="/nuovo">
               <button
                 type="button"
                 className="rounded-sm border border-[var(--brass)]/50 px-3 py-2 text-sm text-[var(--brass)] transition-colors hover:bg-[var(--brass)]/10"

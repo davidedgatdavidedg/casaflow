@@ -450,6 +450,13 @@ export default function CalcolatoreQuickMode() {
   // che da un click sul menu a tendina.
   const router = useRouter();
   const searchParams = useSearchParams();
+  // Percorso completo di questa pagina, query string inclusa (es.
+  // ?id=... o ?daWizard=1): se l'utente fa login da qui, deve tornare
+  // esattamente allo stesso calcolatore che stava compilando, non a
+  // /immobile "nudo" (che perderebbe il salvataggio già caricato).
+  const percorsoCorrente = `/immobile${
+    searchParams.toString() ? `?${searchParams.toString()}` : ""
+  }`;
   // Se arriva dal percorso guidato rapido ("investi"), i dati catastali
   // (comune, categoria, rendita) sono ancora vuoti per costruzione — un
   // banner lo segnala finché non vengono compilati, poi sparisce da solo.
@@ -806,7 +813,7 @@ export default function CalcolatoreQuickMode() {
             </button>
 
             <Show when="signed-out">
-              <SignInButton mode="modal">
+              <SignInButton mode="modal" forceRedirectUrl={percorsoCorrente}>
                 <button
                   type="button"
                   className="rounded-sm border border-[var(--brass)]/50 px-3 py-2 text-sm text-[var(--brass)] transition-colors hover:bg-[var(--brass)]/10"

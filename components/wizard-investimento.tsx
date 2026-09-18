@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
 import LogoCasaFlow from "@/components/logo-casaflow";
 import { Show, SignInButton, useAuth } from "@clerk/nextjs";
@@ -206,6 +207,7 @@ const CHIAVE_SESSION_STORAGE = "casaflow:wizard-investimento:risposte-in-attesa-
 
 export default function WizardInvestimento() {
   const router = useRouter();
+  const pathname = usePathname();
   const { isSignedIn } = useAuth();
   const [step, setStep] = useState(0);
   const [risposte, setRisposte] = useState<RisposteWizard>(RISPOSTE_INIZIALI);
@@ -545,7 +547,7 @@ export default function WizardInvestimento() {
                 <p className="mb-3 text-sm text-[var(--muted)]">
                   Salva la tua analisi per continuare. I dati che hai già inserito non andranno persi.
                 </p>
-                <SignInButton mode="modal">
+                <SignInButton mode="modal" forceRedirectUrl={pathname}>
                   <button
                     type="button"
                     onClick={() => {

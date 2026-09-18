@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import LogoCasaFlow from "@/components/logo-casaflow";
 import { Show, SignInButton, useAuth } from "@clerk/nextjs";
@@ -566,6 +566,11 @@ function RisultatoPrimaCasa({
   salvataggioInCorso: boolean;
   erroreSalvataggio: string | null;
 }) {
+  // Stessa pagina del wizard prima casa: dopo il login (OAuth Google
+  // richiede un redirect a pagina intera) l'utente deve tornare esattamente
+  // qui, non su un default esterno — stesso principio già applicato in
+  // wizard-investimento.tsx.
+  const pathname = usePathname();
   const mostraModifica =
     risultato.scenario === "liquiditaInsufficiente" ||
     risultato.scenario === "liquiditaQuasiAssorbita" ||
@@ -735,7 +740,7 @@ function RisultatoPrimaCasa({
           <p className="mb-3 text-sm text-[var(--muted)]">
             Salva la tua valutazione per continuare. I dati che hai già inserito non andranno persi.
           </p>
-          <SignInButton mode="modal">
+          <SignInButton mode="modal" forceRedirectUrl={pathname}>
             <button
               type="button"
               onClick={onApprofondisci}
