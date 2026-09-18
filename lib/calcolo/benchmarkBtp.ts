@@ -9,6 +9,8 @@
 // tabella di riferimento statica, aggiornata manualmente, non un dato
 // live — l'utente può sempre sovrascriverla con un valore più preciso.
 
+export const DATA_AGGIORNAMENTO_BENCHMARK_BTP = "05/09/2026";
+
 export interface BenchmarkBtp {
   rendimentoNetto: number; // frazione, es. 0.033 = 3,3%
   scadenzaRiferimento: number; // anni del punto (o media dei due punti) usato

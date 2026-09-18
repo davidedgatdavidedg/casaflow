@@ -1,12 +1,13 @@
 // app/privacy/page.tsx
 import Link from "next/link";
+import LogoCasaFlow from "@/components/logo-casaflow";
 
 export default function PaginaPrivacy() {
   return (
     <div className="min-h-screen bg-[var(--ink)] text-[var(--ink-text)]">
       <header className="border-b border-[var(--rule)] px-6 py-5 lg:px-10">
-        <h1 className="font-[var(--font-display)] text-2xl tracking-tight">
-          <Link href="/">CasaFlow</Link>
+        <h1>
+          <LogoCasaFlow />
         </h1>
       </header>
 

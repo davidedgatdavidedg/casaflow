@@ -223,7 +223,7 @@ export default function UnitaCard({
             }
           />
           <span className="mt-1.5 block text-[10px] text-[var(--muted)]">
-            Usata per stimare TARI, utenze e spese condominiali.
+            Usata per stimare TARI e spese condominiali.
           </span>
         </label>
 

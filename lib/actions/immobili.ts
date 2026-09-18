@@ -77,6 +77,31 @@ export async function caricaImmobileUtente(id: string) {
   return immobile;
 }
 
+/** Rinomina un immobile già salvato, senza toccare i dati calcolati
+ * (dati) — solo il nome e, coerentemente con salvaImmobile, la data di
+ * ultimo aggiornamento (che è anche ciò che ordina l'elenco nel
+ * portafoglio). */
+export async function rinominaImmobile(
+  id: string,
+  nuovoNome: string
+): Promise<void> {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Devi accedere.");
+  if (!nuovoNome.trim()) {
+    throw new Error("Serve un nome per rinominare l'immobile.");
+  }
+
+  const [aggiornato] = await db
+    .update(immobiliUtente)
+    .set({ nome: nuovoNome.trim(), aggiornatoIl: new Date() })
+    .where(and(eq(immobiliUtente.id, id), eq(immobiliUtente.userId, userId)))
+    .returning({ id: immobiliUtente.id });
+
+  if (!aggiornato) {
+    throw new Error("Immobile non trovato o non tuo.");
+  }
+}
+
 export async function eliminaImmobile(id: string): Promise<void> {
   const { userId } = await auth();
   if (!userId) throw new Error("Devi accedere.");

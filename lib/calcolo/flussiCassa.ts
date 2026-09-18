@@ -105,9 +105,6 @@ export interface ParametriFlussiCassa {
   /** Addizionali IRPEF (regionale + comunale) — si applicano solo in
    * regime di tassazione ordinaria, non con cedolare secca. */
   addizionaliAnnue?: number;
-  energiaElettricaAnnua?: number;
-  gasAnnuo?: number;
-  internetAnnuo?: number;
   condominioAnnuo?: number;
   manutenzioneOrdinariaAnnua?: number;
   manutenzioneStraordinariaAnnua?: number;
@@ -191,9 +188,6 @@ export function calcolaFlussiCassa(
     imuAnnua,
     tariAnnua = 0,
     addizionaliAnnue = 0,
-    energiaElettricaAnnua = 0,
-    gasAnnuo = 0,
-    internetAnnuo = 0,
     condominioAnnuo = 0,
     manutenzioneOrdinariaAnnua = 0,
     manutenzioneStraordinariaAnnua = 0,
@@ -414,9 +408,6 @@ export function calcolaFlussiCassa(
     }
 
     const speseRicorrentiSemplici: [number, string][] = [
-      [energiaElettricaAnnua, "Energia elettrica"],
-      [gasAnnuo, "Gas"],
-      [internetAnnuo, "Internet"],
       [condominioAnnuo, "Spese condominiali"],
       [manutenzioneOrdinariaAnnua, "Manutenzione ordinaria"],
       [manutenzioneStraordinariaAnnua, "Manutenzione straordinaria"],

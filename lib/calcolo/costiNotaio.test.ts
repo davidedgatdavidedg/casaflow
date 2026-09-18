@@ -3,12 +3,12 @@ import { describe, it, expect } from "vitest";
 import { calcolaCostiNotaio } from "./costiNotaio";
 
 describe("calcolaCostiNotaio", () => {
-  it("stima onorario 2% del prezzo, visure e tassa archivio ai valori di default", () => {
+  it("stima onorario 1.000€ + 0,5% del prezzo, visure e tassa archivio ai valori di default", () => {
     const risultato = calcolaCostiNotaio(200000);
-    expect(risultato.onorario).toBeCloseTo(4000, 1); // 200000 * 2%
+    expect(risultato.onorario).toBeCloseTo(2000, 1); // 1000 + 200000*0.005
     expect(risultato.visure).toBe(150);
     expect(risultato.tassaArchivio).toBe(35);
-    expect(risultato.totale).toBeCloseTo(4185, 1);
+    expect(risultato.totale).toBeCloseTo(2185, 1);
   });
 
   it("un onorario personalizzato ha sempre la precedenza sulla stima", () => {

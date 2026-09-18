@@ -39,14 +39,12 @@ const baseSenzaMutuo: ParametriSimulazione = {
   visureNotaioPersonalizzate: "",
   tassaArchivioPersonalizzata: "",
   tariffaTariPersonalizzata: "",
-  energiaElettricaPersonalizzata: "",
-  gasPersonalizzato: "",
-  internetPersonalizzato: "",
   condominioAnnuoPersonalizzato: "",
   manutenzioneOrdinariaPersonalizzata: "",
   manutenzioneStraordinariaPersonalizzata: "",
   assicurazionePersonalizzata: "",
   altriCostiAcquistoPersonalizzato: "",
+  coefficienteValorizzazioneRistrutturazionePersonalizzato: "",
   ristrutturazione: 0,
   arredamento: 0,
   tassoBenchmarkPersonalizzato: "",
@@ -168,5 +166,119 @@ describe("calcolaSimulazione — ristrutturazione", () => {
 
     const nomi = r.leveOrdinate.map((l) => l.nome);
     expect(nomi.some((n) => n.includes("ristrutturazione"))).toBe(true);
+  });
+});
+
+describe("calcolaSimulazione — coefficiente di valorizzazione ristrutturazione", () => {
+  const conLavori: ParametriSimulazione = {
+    ...baseSenzaMutuo,
+    ristrutturazione: 40000,
+  };
+
+  it("default (75%, nessun override): 200k + 40k*0.75 = 230k come base rivalutabile", () => {
+    const r = calcolaSimulazione(conLavori);
+    expect(r.coefficienteValorizzazioneRistrutturazione).toBe(0.75);
+    expect(r.valoreRistrutturazione).toBe(30000);
+    expect(r.valoreBaseVendita).toBe(230000);
+    // 230000 * 1.02^5
+    expect(r.valoreStimatoRivendita).toBeCloseTo(253938.58, 1);
+  });
+
+  it("un salvataggio vecchio (campo del tutto assente, non solo vuoto) si comporta come il default 75%", () => {
+    // Simula un JSON salvato prima che questo campo esistesse: la
+    // proprietà non è proprio presente nell'oggetto, non solo vuota.
+    const datiVecchi = { ...conLavori } as Partial<ParametriSimulazione>;
+    delete datiVecchi.coefficienteValorizzazioneRistrutturazionePersonalizzato;
+
+    const rVecchio = calcolaSimulazione(datiVecchi as ParametriSimulazione);
+    const rDefaultEsplicito = calcolaSimulazione(conLavori);
+    expect(rVecchio.valoreStimatoRivendita).toBe(rDefaultEsplicito.valoreStimatoRivendita);
+  });
+
+  it("coefficiente personalizzato 0%: i lavori non incidono affatto sul valore di rivendita", () => {
+    const r = calcolaSimulazione({
+      ...conLavori,
+      coefficienteValorizzazioneRistrutturazionePersonalizzato: "0",
+    });
+    expect(r.valoreRistrutturazione).toBe(0);
+    expect(r.valoreBaseVendita).toBe(200000);
+  });
+
+  it("coefficiente personalizzato 100%: equivalente a considerare l'intera spesa come valore", () => {
+    const r = calcolaSimulazione({
+      ...conLavori,
+      coefficienteValorizzazioneRistrutturazionePersonalizzato: "100",
+    });
+    expect(r.valoreRistrutturazione).toBe(40000);
+    expect(r.valoreBaseVendita).toBe(240000);
+  });
+
+  it("il costo della ristrutturazione resta un'uscita di cassa al 100%, qualunque sia il coefficiente", () => {
+    // Nessun doppio conteggio: totaleCostiUnaTantum non deve MAI
+    // dipendere dal coefficiente di valorizzazione, solo dal costo
+    // pieno della ristrutturazione (il coefficiente incide solo sul
+    // valore di rivendita finale, mai sull'esborso iniziale).
+    const con0 = calcolaSimulazione({
+      ...conLavori,
+      coefficienteValorizzazioneRistrutturazionePersonalizzato: "0",
+    });
+    const con75 = calcolaSimulazione(conLavori);
+    const con100 = calcolaSimulazione({
+      ...conLavori,
+      coefficienteValorizzazioneRistrutturazionePersonalizzato: "100",
+    });
+    expect(con0.totaleCostiUnaTantum).toBe(con75.totaleCostiUnaTantum);
+    expect(con75.totaleCostiUnaTantum).toBe(con100.totaleCostiUnaTantum);
+  });
+
+  it("l'IRR cambia coerentemente al variare del coefficiente (più valorizzazione, IRR più alto)", () => {
+    const con0 = calcolaSimulazione({
+      ...conLavori,
+      coefficienteValorizzazioneRistrutturazionePersonalizzato: "0",
+    });
+    const con100 = calcolaSimulazione({
+      ...conLavori,
+      coefficienteValorizzazioneRistrutturazionePersonalizzato: "100",
+    });
+    expect(con0.irr).not.toBeNull();
+    expect(con100.irr).not.toBeNull();
+    expect(con100.irr!).toBeGreaterThan(con0.irr!);
+  });
+
+  it("con lavori a zero, il comportamento è identico al modello precedente (nessuna regressione)", () => {
+    const r = calcolaSimulazione(baseSenzaMutuo); // ristrutturazione: 0
+    expect(r.valoreRistrutturazione).toBe(0);
+    expect(r.valoreBaseVendita).toBe(baseSenzaMutuo.prezzoAcquisto);
+    expect(r.valoreStimatoRivendita).toBeCloseTo(220816.16, 1); // stesso valore del test originale
+  });
+
+  it("la leva 'Costo ristrutturazione' è più sensibile con un coefficiente più alto", () => {
+    // Con un coefficiente maggiore, variare il costo dei lavori ±20%
+    // non tocca solo il flusso di cassa ma anche il prezzo di
+    // rivendita nella stessa direzione: l'ampiezza IRR della leva deve
+    // quindi risultare maggiore a coefficiente 100% che a coefficiente
+    // 0% (dove il prezzo di rivendita resta insensibile ai lavori).
+    // Un vero test di coerenza per la correzione: con la vecchia leva
+    // (che non aggiornava mai il prezzo di rivendita) l'ampiezza
+    // sarebbe risultata identica in entrambi i casi.
+    const trovaLeva = (r: ReturnType<typeof calcolaSimulazione>) =>
+      r.leveOrdinate.find((l) => l.nome.includes("ristrutturazione"))!;
+
+    const con0 = trovaLeva(
+      calcolaSimulazione({
+        ...conLavori,
+        coefficienteValorizzazioneRistrutturazionePersonalizzato: "0",
+      })
+    );
+    const con100 = trovaLeva(
+      calcolaSimulazione({
+        ...conLavori,
+        coefficienteValorizzazioneRistrutturazionePersonalizzato: "100",
+      })
+    );
+
+    const ampiezza0 = Math.abs(con0.irrAlto! - con0.irrBasso!);
+    const ampiezza100 = Math.abs(con100.irrAlto! - con100.irrBasso!);
+    expect(ampiezza100).toBeGreaterThan(ampiezza0);
   });
 });

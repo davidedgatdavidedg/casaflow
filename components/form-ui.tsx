@@ -5,7 +5,9 @@
 // calcolatore-quick-mode.tsx per renderlo più piccolo e per poterli
 // riusare in futuri form (es. una eventuale pagina di confronto tra
 // immobili) senza duplicare markup.
+"use client";
 
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import IconaInfo from "@/components/icona-info";
 
 export const classiInput =
@@ -108,6 +110,170 @@ export function InputNumero({
       onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
     />
   );
+}
+
+/** Inserisce il punto delle migliaia manualmente, senza affidarsi a
+ * Intl.NumberFormat: la locale "it-IT" raggruppa le migliaia solo a
+ * partire da 5 cifre per una regola di ECMA-402 (minimumGroupingDigits),
+ * quindi "1800" resterebbe senza punto — non quello che vogliamo qui.
+ * La regex inserisce un punto prima di ogni gruppo di 3 cifre che ha
+ * almeno un'altra cifra prima di sé (\B = non a inizio numero). */
+function formattaMigliaia(numero: number): string {
+  return Math.round(numero).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
+/**
+ * Campo numerico per importi assoluti "pieni" (prezzo, ristrutturazione,
+ * canone, mutuo, ecc.): mostra il valore con il separatore delle
+ * migliaia (1.000, non 1000) IN TEMPO REALE mentre si digita, e
+ * affianca due pulsanti su/giù con uno step configurabile (default 5).
+ *
+ * Un <input type="number"> nativo non può mostrare "1.000" (il punto
+ * non è un formato numerico valido per il browser), quindi questo è un
+ * campo di testo con parsing/formattazione manuali. La parte delicata è
+ * non far "saltare" il cursore a fine campo ogni volta che il testo
+ * viene riformattato durante la digitazione: la posizione del cursore
+ * viene quindi tradotta in "quante cifre ci sono prima di esso" PRIMA
+ * di riformattare, e ricostruita cercando la stessa quantità di cifre
+ * nel nuovo testo formattato, subito dopo.
+ *
+ * NON usare per percentuali o conteggi piccoli (tasso mutuo, anni,
+ * rivalutazione): per quelli resta valido InputNumero, che mantiene i
+ * decimali e le frecce native del browser.
+ */
+export function InputNumeroMigliaia({
+  valore,
+  onChange,
+  step = 5,
+  min = 0,
+  mostraStepper = true,
+  prefisso,
+  suffisso,
+}: {
+  valore: number;
+  onChange: (v: number) => void;
+  step?: number;
+  min?: number;
+  mostraStepper?: boolean;
+  prefisso?: string;
+  suffisso?: string;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  // Non null SOLO nell'istante tra una digitazione e il successivo
+  // ripristino del cursore — vedi gestisciCambiamento/useLayoutEffect.
+  const cifrePrimaDelCursoreRef = useRef<number | null>(null);
+
+  const [testoVisualizzato, setTestoVisualizzato] = useState(() =>
+    formattaMigliaia(valore)
+  );
+
+  // Se il valore cambia dall'esterno (caricamento di un salvataggio, un
+  // clic sulle frecce, o il genitore che sovrascrive il valore) e non
+  // stiamo già gestendo una digitazione in corso, riformatta da zero.
+  useEffect(() => {
+    if (cifrePrimaDelCursoreRef.current === null) {
+      setTestoVisualizzato(formattaMigliaia(valore));
+    }
+  }, [valore]);
+
+  // Dopo che il testo digitato è stato riformattato (nel render
+  // successivo a gestisciCambiamento), riposiziona il cursore nello
+  // stesso punto "logico" (stesso numero di cifre prima di esso) invece
+  // di lasciarlo saltare a fine campo.
+  useLayoutEffect(() => {
+    if (cifrePrimaDelCursoreRef.current === null) return;
+    const input = inputRef.current;
+    if (input) {
+      const posizione = trovaPosizioneCursore(
+        testoVisualizzato,
+        cifrePrimaDelCursoreRef.current
+      );
+      input.setSelectionRange(posizione, posizione);
+    }
+    cifrePrimaDelCursoreRef.current = null;
+  }, [testoVisualizzato]);
+
+  function gestisciCambiamento(e: React.ChangeEvent<HTMLInputElement>) {
+    const input = e.target;
+    const posizioneCursore = input.selectionStart ?? input.value.length;
+    const testoGrezzo = input.value;
+
+    const cifrePrimaDelCursore = testoGrezzo
+      .slice(0, posizioneCursore)
+      .replace(/\D/g, "").length;
+
+    const soloCifre = testoGrezzo.replace(/\D/g, "");
+    const numero = soloCifre === "" ? 0 : parseInt(soloCifre, 10);
+
+    cifrePrimaDelCursoreRef.current = cifrePrimaDelCursore;
+    onChange(numero);
+    setTestoVisualizzato(formattaMigliaia(numero));
+  }
+
+  function incrementa(delta: number) {
+    onChange(Math.max(valore + delta, min));
+  }
+
+  return (
+    <div className="flex">
+      {prefisso && (
+        <span className="flex items-center rounded-l-sm border border-r-0 border-[var(--rule)] bg-[var(--surface)] px-3 text-sm text-[var(--muted)]">
+          {prefisso}
+        </span>
+      )}
+      <input
+        ref={inputRef}
+        className={`${classiInput} ${prefisso ? "rounded-l-none" : ""} ${mostraStepper ? "rounded-r-none border-r-0" : ""} ${suffisso ? "rounded-r-none border-r-0" : ""}`}
+        type="text"
+        inputMode="numeric"
+        value={testoVisualizzato}
+        onChange={gestisciCambiamento}
+      />
+      {suffisso && (
+        <span className={`flex items-center border border-l-0 border-[var(--rule)] bg-[var(--surface)] px-3 text-sm text-[var(--muted)] ${mostraStepper ? "" : "rounded-r-sm"}`}>
+          {suffisso}
+        </span>
+      )}
+      {mostraStepper && (
+        <div className={`flex shrink-0 flex-col overflow-hidden rounded-r-sm border border-[var(--rule)] ${suffisso ? "border-l-0" : ""}`}>
+          <button
+            type="button"
+            tabIndex={-1}
+            onClick={() => incrementa(step)}
+            aria-label="Aumenta"
+            className="flex-1 px-2 text-[10px] leading-none text-[var(--muted)] transition-colors hover:bg-white/5 hover:text-[var(--brass)]"
+          >
+            ▲
+          </button>
+          <button
+            type="button"
+            tabIndex={-1}
+            onClick={() => incrementa(-step)}
+            aria-label="Diminuisci"
+            className="flex-1 border-t border-[var(--rule)] px-2 text-[10px] leading-none text-[var(--muted)] transition-colors hover:bg-white/5 hover:text-[var(--brass)]"
+          >
+            ▼
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Cerca la posizione (indice di carattere) nel testo formattato subito
+ * dopo la N-esima cifra, dove N = cifreDaContare — usata per rimettere
+ * il cursore "nello stesso punto logico" dopo che il testo è stato
+ * riformattato con separatori delle migliaia. */
+function trovaPosizioneCursore(testo: string, cifreDaContare: number): number {
+  if (cifreDaContare === 0) return 0;
+  let cifreViste = 0;
+  for (let i = 0; i < testo.length; i++) {
+    if (/\d/.test(testo[i])) {
+      cifreViste++;
+      if (cifreViste === cifreDaContare) return i + 1;
+    }
+  }
+  return testo.length;
 }
 
 export function ToggleSiNo({

@@ -52,10 +52,14 @@ export default function TabellaMovimenti({
   transazioni,
   anniInvestimento,
   nomeImmobile,
+  coefficienteValorizzazioneRistrutturazione,
 }: {
   transazioni: VoceFlusso[];
   anniInvestimento: number;
   nomeImmobile: string | null;
+  /** null = nessuna ristrutturazione, il coefficiente non è rilevante
+   * per questa simulazione e non va esportato. */
+  coefficienteValorizzazioneRistrutturazione: number | null;
 }) {
   const [ordinamento, setOrdinamento] = useState<{
     colonna: Colonna;
@@ -167,6 +171,18 @@ export default function TabellaMovimenti({
     cellaSubtotale.numFmt = formatoValutaExcel;
     cellaSubtotale.font = { bold: true };
 
+    // Coefficiente di valorizzazione ristrutturazione: rilevante solo
+    // se questa simulazione ha una ristrutturazione — esportato per
+    // rendere riproducibile l'ipotesi usata, non solo il suo effetto
+    // (già visibile nella riga "Vendita immobile" tra le transazioni).
+    if (coefficienteValorizzazioneRistrutturazione !== null) {
+      foglio.getCell("G1").value = "Coefficiente valorizzazione ristrutturazione:";
+      foglio.getCell("G1").alignment = { horizontal: "right" };
+      const cellaCoefficiente = foglio.getCell("H1");
+      cellaCoefficiente.value = coefficienteValorizzazioneRistrutturazione;
+      cellaCoefficiente.numFmt = "0%";
+    }
+
     // Riga 3: intestazioni colonna.
     const intestazioni = ["Anno", "Data", "Tipo", "Voce", "Importo (€)"];
     intestazioni.forEach((testo, indice) => {
@@ -193,6 +209,9 @@ export default function TabellaMovimenti({
       { width: 15 }, // Tipo
       { width: 46 }, // Voce
       { width: 15 }, // Importo
+      { width: 3 }, // F, separatore vuoto
+      { width: 40 }, // G — etichetta coefficiente
+      { width: 10 }, // H — valore coefficiente
     ];
 
     foglio.autoFilter = {

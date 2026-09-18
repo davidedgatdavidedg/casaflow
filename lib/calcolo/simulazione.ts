@@ -33,12 +33,15 @@ import { calcolaDetrazioneMobili } from "./detrazioneMobili";
 import { calcolaXIRR } from "./irr";
 import { calcolaTari } from "./tari";
 import { calcolaAddizionaliIrpef } from "./addizionaliIrpef";
-import { calcolaUtenze } from "./utenze";
 import { calcolaSpeseCondominio } from "./condominio";
 import { calcolaManutenzione } from "./manutenzione";
 import { calcolaAssicurazione } from "./assicurazione";
 import { primoDelMeseSuccessivo } from "@/lib/date-utils";
 import type { Immobile, Mutuo, TipoVenditore, UnitaCatastale } from "./tipi";
+import {
+  calcolaPrezzoVenditaStimato,
+  COEFFICIENTE_VALORIZZAZIONE_RISTRUTTURAZIONE_DEFAULT,
+} from "./valorizzazioneRistrutturazione";
 import type { UnitaForm } from "@/lib/tipi-form";
 
 export interface ParametriSimulazione {
@@ -65,14 +68,15 @@ export interface ParametriSimulazione {
   visureNotaioPersonalizzate: string;
   tassaArchivioPersonalizzata: string;
   tariffaTariPersonalizzata: string;
-  energiaElettricaPersonalizzata: string;
-  gasPersonalizzato: string;
-  internetPersonalizzato: string;
   condominioAnnuoPersonalizzato: string;
   manutenzioneOrdinariaPersonalizzata: string;
   manutenzioneStraordinariaPersonalizzata: string;
   assicurazionePersonalizzata: string;
   altriCostiAcquistoPersonalizzato: string;
+  /** Percentuale 0-150 (suggerita, non imposta): quanta parte della
+   * spesa di ristrutturazione si riflette sul valore di rivendita
+   * stimato. Stringa vuota = usa COEFFICIENTE_VALORIZZAZIONE_RISTRUTTURAZIONE_DEFAULT (75%). */
+  coefficienteValorizzazioneRistrutturazionePersonalizzato: string;
   ristrutturazione: number;
   arredamento: number;
   tassoBenchmarkPersonalizzato: string;
@@ -119,14 +123,12 @@ export function calcolaSimulazione(
     visureNotaioPersonalizzate,
     tassaArchivioPersonalizzata,
     tariffaTariPersonalizzata,
-    energiaElettricaPersonalizzata,
-    gasPersonalizzato,
-    internetPersonalizzato,
     condominioAnnuoPersonalizzato,
     manutenzioneOrdinariaPersonalizzata,
     manutenzioneStraordinariaPersonalizzata,
     assicurazionePersonalizzata,
     altriCostiAcquistoPersonalizzato,
+    coefficienteValorizzazioneRistrutturazionePersonalizzato,
     ristrutturazione,
     arredamento,
     tassoBenchmarkPersonalizzato,
@@ -211,20 +213,6 @@ export function calcolaSimulazione(
     ? parseFloat(tariffaTariPersonalizzata)
     : undefined;
   const tari = calcolaTari(metriQuadriTotali, tariffaTariCustom);
-
-  const energiaElettricaCustom = energiaElettricaPersonalizzata
-    ? parseFloat(energiaElettricaPersonalizzata)
-    : undefined;
-  const gasCustom = gasPersonalizzato ? parseFloat(gasPersonalizzato) : undefined;
-  const internetCustom = internetPersonalizzato
-    ? parseFloat(internetPersonalizzato)
-    : undefined;
-  const utenze = calcolaUtenze(
-    metriQuadriTotali,
-    energiaElettricaCustom,
-    gasCustom,
-    internetCustom
-  );
 
   const costoCondominioCustom = condominioAnnuoPersonalizzato
     ? parseFloat(condominioAnnuoPersonalizzato)
@@ -320,7 +308,6 @@ export function calcolaSimulazione(
     imu +
     tari.totale +
     (addizionali?.importo ?? 0) +
-    utenze.totale +
     condominio.totale +
     manutenzione.totale +
     assicurazione.totale;
@@ -328,9 +315,25 @@ export function calcolaSimulazione(
   const flussoNettoAnno1 =
     tassazioneAffitto.affittoNetto - rataAnnua - totaleCostiRicorrenti;
 
-  const valoreStimatoRivendita =
-    prezzoAcquisto *
-    Math.pow(1 + rivalutazioneAnnuaPercentuale / 100, anniInvestimento);
+  const coefficienteValorizzazioneRistrutturazioneCustom =
+    coefficienteValorizzazioneRistrutturazionePersonalizzato
+      ? parseFloat(coefficienteValorizzazioneRistrutturazionePersonalizzato) / 100
+      : undefined;
+  const coefficienteValorizzazioneRistrutturazione =
+    coefficienteValorizzazioneRistrutturazioneCustom ??
+    COEFFICIENTE_VALORIZZAZIONE_RISTRUTTURAZIONE_DEFAULT;
+
+  const {
+    valoreRistrutturazione,
+    valoreBaseVendita,
+    prezzoVenditaStimato: valoreStimatoRivendita,
+  } = calcolaPrezzoVenditaStimato(
+    prezzoAcquisto,
+    ristrutturazione,
+    coefficienteValorizzazioneRistrutturazione,
+    rivalutazioneAnnuaPercentuale / 100,
+    anniInvestimento
+  );
 
   const rivalutazioneCapitaleTotale = valoreStimatoRivendita - prezzoAcquisto;
   const rivalutazioneCapitalePercentuale =
@@ -367,9 +370,6 @@ export function calcolaSimulazione(
     imuAnnua: imu,
     tariAnnua: tari.totale,
     addizionaliAnnue: addizionali?.importo ?? 0,
-    energiaElettricaAnnua: utenze.energiaElettrica.totale,
-    gasAnnuo: utenze.gas.totale,
-    internetAnnuo: utenze.internet.totale,
     condominioAnnuo: condominio.totale,
     manutenzioneOrdinariaAnnua: manutenzione.ordinaria,
     manutenzioneStraordinariaAnnua: manutenzione.straordinaria,
@@ -415,17 +415,28 @@ export function calcolaSimulazione(
 
   if (calcolaLeve) {
   if (prezzoAcquisto > 0) {
-    const fattoreRivendita =
-      prezzoAcquisto > 0 ? valoreStimatoRivendita / prezzoAcquisto : 1;
+    const anniPerRivendita = Math.max(anniInvestimento, 1);
     leve.push({
       nome: "Prezzo di acquisto (±10%)",
       irrBasso: irrConVariante({
         prezzoAcquisto: prezzoAcquisto * 0.9,
-        prezzoRivenditaStimato: prezzoAcquisto * 0.9 * fattoreRivendita,
+        prezzoRivenditaStimato: calcolaPrezzoVenditaStimato(
+          prezzoAcquisto * 0.9,
+          ristrutturazione,
+          coefficienteValorizzazioneRistrutturazione,
+          rivalutazioneAnnuaPercentuale / 100,
+          anniPerRivendita
+        ).prezzoVenditaStimato,
       }),
       irrAlto: irrConVariante({
         prezzoAcquisto: prezzoAcquisto * 1.1,
-        prezzoRivenditaStimato: prezzoAcquisto * 1.1 * fattoreRivendita,
+        prezzoRivenditaStimato: calcolaPrezzoVenditaStimato(
+          prezzoAcquisto * 1.1,
+          ristrutturazione,
+          coefficienteValorizzazioneRistrutturazione,
+          rivalutazioneAnnuaPercentuale / 100,
+          anniPerRivendita
+        ).prezzoVenditaStimato,
       }),
     });
   }
@@ -447,10 +458,34 @@ export function calcolaSimulazione(
   }
 
   if (ristrutturazione > 0) {
+    const anniPerRivendita = Math.max(anniInvestimento, 1);
+    // Variare il costo dei lavori deve anche variare, coerentemente, la
+    // quota di quella spesa attribuita al valore di rivendita — non solo
+    // il flusso di cassa in uscita. Prima di questa correzione la leva
+    // toccava solo il costo, lasciando il prezzo di rivendita invariato:
+    // un'incoerenza tra le due metà dello stesso effetto.
     leve.push({
       nome: "Costo ristrutturazione (±20%)",
-      irrBasso: irrConVariante({ ristrutturazione: ristrutturazione * 0.8 }),
-      irrAlto: irrConVariante({ ristrutturazione: ristrutturazione * 1.2 }),
+      irrBasso: irrConVariante({
+        ristrutturazione: ristrutturazione * 0.8,
+        prezzoRivenditaStimato: calcolaPrezzoVenditaStimato(
+          prezzoAcquisto,
+          ristrutturazione * 0.8,
+          coefficienteValorizzazioneRistrutturazione,
+          rivalutazioneAnnuaPercentuale / 100,
+          anniPerRivendita
+        ).prezzoVenditaStimato,
+      }),
+      irrAlto: irrConVariante({
+        ristrutturazione: ristrutturazione * 1.2,
+        prezzoRivenditaStimato: calcolaPrezzoVenditaStimato(
+          prezzoAcquisto,
+          ristrutturazione * 1.2,
+          coefficienteValorizzazioneRistrutturazione,
+          rivalutazioneAnnuaPercentuale / 100,
+          anniPerRivendita
+        ).prezzoVenditaStimato,
+      }),
     });
   }
 
@@ -479,12 +514,22 @@ export function calcolaSimulazione(
     leve.push({
       nome: "Rivalutazione annua immobile (±0,5 punti)",
       irrBasso: irrConVariante({
-        prezzoRivenditaStimato:
-          prezzoAcquisto * Math.pow(1 + rivalutazioneBassa, anniPerRivendita),
+        prezzoRivenditaStimato: calcolaPrezzoVenditaStimato(
+          prezzoAcquisto,
+          ristrutturazione,
+          coefficienteValorizzazioneRistrutturazione,
+          rivalutazioneBassa,
+          anniPerRivendita
+        ).prezzoVenditaStimato,
       }),
       irrAlto: irrConVariante({
-        prezzoRivenditaStimato:
-          prezzoAcquisto * Math.pow(1 + rivalutazioneAlta, anniPerRivendita),
+        prezzoRivenditaStimato: calcolaPrezzoVenditaStimato(
+          prezzoAcquisto,
+          ristrutturazione,
+          coefficienteValorizzazioneRistrutturazione,
+          rivalutazioneAlta,
+          anniPerRivendita
+        ).prezzoVenditaStimato,
       }),
     });
   }
@@ -509,7 +554,6 @@ export function calcolaSimulazione(
     tassazioneAffitto,
     addizionali,
     tari,
-    utenze,
     condominio,
     manutenzione,
     assicurazione,
@@ -526,6 +570,9 @@ export function calcolaSimulazione(
     detrazioneRistrutturazione,
     detrazioneMobili,
     flussoNettoAnno1,
+    coefficienteValorizzazioneRistrutturazione,
+    valoreRistrutturazione,
+    valoreBaseVendita,
     valoreStimatoRivendita,
     rivalutazioneCapitaleTotale,
     rivalutazioneCapitalePercentuale,

@@ -2,8 +2,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { createPortal } from "react-dom";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import LogoCasaFlow from "@/components/logo-casaflow";
 import { Show, SignInButton, UserButton, useAuth } from "@clerk/nextjs";
 import {
   salvaImmobile,
@@ -25,6 +27,7 @@ import {
   SezioneForm,
   Campo,
   InputNumero,
+  InputNumeroMigliaia,
   ToggleSiNo,
   RigaDati,
 } from "@/components/form-ui";
@@ -37,12 +40,22 @@ import {
 } from "@/lib/calcolo/obiettivoIrr";
 import { TARIFFA_TARI_DEFAULT_PER_MQ } from "@/lib/calcolo/tari";
 import { COSTO_CONDOMINIO_DEFAULT_PER_MQ } from "@/lib/calcolo/condominio";
+import { COEFFICIENTE_VALORIZZAZIONE_RISTRUTTURAZIONE_DEFAULT } from "@/lib/calcolo/valorizzazioneRistrutturazione";
+import {
+  ONORARIO_NOTAIO_FISSO_DEFAULT,
+  ONORARIO_NOTAIO_PERCENTUALE_DEFAULT,
+} from "@/lib/calcolo/costiNotaio";
+import {
+  PERCENTUALE_MANUTENZIONE_ORDINARIA_DEFAULT,
+  PERCENTUALE_MANUTENZIONE_STRAORDINARIA_DEFAULT,
+} from "@/lib/calcolo/manutenzione";
 import type { TipoVenditore } from "@/lib/calcolo/tipi";
 import type { UnitaForm } from "@/lib/tipi-form";
 import { nuovaUnitaVuota, unitaCompletamenteVuota } from "@/lib/tipi-form";
 import UnitaCard from "@/components/unita-card";
 import DialogoSalva from "@/components/dialogo-salva";
 import ListaSalvatiDropdown from "@/components/lista-salvati-dropdown";
+import PulsanteRinominaImmobile from "@/components/pulsante-rinomina-immobile";
 import {
   PannelloCostiUnaTantum,
   PannelloDettaglioAnnuale,
@@ -54,12 +67,10 @@ import {
   PannelloObiettivo,
 } from "@/components/pannelli-risultati";
 import { primoDelMeseSuccessivo, formatoISO } from "@/lib/date-utils";
+import { useValoreDebounced } from "@/lib/hooks/use-valore-debounced";
 
-const PERCENTUALE_NOTAIO_DEFAULT_UI = 2;
 const VISURE_NOTAIO_DEFAULT_UI = 150;
 const TASSA_ARCHIVIO_DEFAULT_UI = 35;
-const PERCENTUALE_MANUTENZIONE_ORDINARIA_UI = 1;
-const PERCENTUALE_MANUTENZIONE_STRAORDINARIA_UI = 0.3;
 
 /** Estratta come tipo con nome (invece di un object-literal inline
  * dentro useState<...>) perché in un file .tsx un generico multi-riga
@@ -164,10 +175,8 @@ export default function CalcolatoreQuickMode() {
   const [modalitaAvanzata, setModalitaAvanzata] = useState(false);
   const [speseIncassoPerRata, setSpeseIncassoPerRata] = useState(0);
   const [tariffaTariPersonalizzata, setTariffaTariPersonalizzata] = useState<string>("");
-  const [energiaElettricaPersonalizzata, setEnergiaElettricaPersonalizzata] =
+  const [coefficienteValorizzazioneRistrutturazionePersonalizzato, setCoefficienteValorizzazioneRistrutturazionePersonalizzato] =
     useState<string>("");
-  const [gasPersonalizzato, setGasPersonalizzato] = useState<string>("");
-  const [internetPersonalizzato, setInternetPersonalizzato] = useState<string>("");
   const [condominioAnnuoPersonalizzato, setCondominioAnnuoPersonalizzato] =
     useState<string>("");
   const [manutenzioneOrdinariaPersonalizzata, setManutenzioneOrdinariaPersonalizzata] =
@@ -245,9 +254,7 @@ export default function CalcolatoreQuickMode() {
       tassaArchivioPersonalizzata,
       altriCostiAcquistoPersonalizzato,
       tariffaTariPersonalizzata,
-      energiaElettricaPersonalizzata,
-      gasPersonalizzato,
-      internetPersonalizzato,
+      coefficienteValorizzazioneRistrutturazionePersonalizzato,
       condominioAnnuoPersonalizzato,
       manutenzioneOrdinariaPersonalizzata,
       manutenzioneStraordinariaPersonalizzata,
@@ -255,6 +262,36 @@ export default function CalcolatoreQuickMode() {
       ristrutturazione,
       arredamento,
     };
+  }
+
+  // Rilevamento "modifiche non salvate": invece di tracciare la
+  // "dirtiness" campo per campo (fragile — ogni nuovo campo del form
+  // andrebbe aggiunto anche qui), si confronta l'intero
+  // costruisciStatoSalvabile() corrente contro l'ultimo snapshot preso
+  // subito dopo un caricamento o un salvataggio riusciti. Il contatore
+  // esiste perché idImmobileCorrente da solo non basta a sapere
+  // "quando" ri-catturare lo snapshot: non cambia tra un salvataggio e
+  // l'altro dello stesso immobile, quindi un effetto agganciato solo a
+  // quello non si riattiverebbe dopo un secondo salvataggio.
+  const statoUltimoSincronizzatoRef = useRef<string | null>(null);
+  const [contatoreSincronizzazione, setContatoreSincronizzazione] = useState(0);
+
+  useEffect(() => {
+    statoUltimoSincronizzatoRef.current = JSON.stringify(costruisciStatoSalvabile());
+    // Intenzionalmente solo sul contatore: costruisciStatoSalvabile()
+    // cambia ad ogni tasto premuto, non deve far ripartire l'effetto.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contatoreSincronizzazione]);
+
+  function hasModificheNonSalvate(): boolean {
+    // Se lo snapshot non è ancora pronto (primissimo render, prima che
+    // l'effetto sopra sia scattato) si assume prudenzialmente "nessuna
+    // modifica" piuttosto che rischiare un falso allarme a form appena
+    // aperto.
+    if (statoUltimoSincronizzatoRef.current === null) return false;
+    return (
+      JSON.stringify(costruisciStatoSalvabile()) !== statoUltimoSincronizzatoRef.current
+    );
   }
 
   function applicaStatoSalvato(dati: ReturnType<typeof costruisciStatoSalvabile>) {
@@ -286,9 +323,9 @@ export default function CalcolatoreQuickMode() {
     setTassaArchivioPersonalizzata(dati.tassaArchivioPersonalizzata);
     setAltriCostiAcquistoPersonalizzato(dati.altriCostiAcquistoPersonalizzato ?? "");
     setTariffaTariPersonalizzata(dati.tariffaTariPersonalizzata);
-    setEnergiaElettricaPersonalizzata(dati.energiaElettricaPersonalizzata);
-    setGasPersonalizzato(dati.gasPersonalizzato);
-    setInternetPersonalizzato(dati.internetPersonalizzato);
+    setCoefficienteValorizzazioneRistrutturazionePersonalizzato(
+      dati.coefficienteValorizzazioneRistrutturazionePersonalizzato
+    );
     setCondominioAnnuoPersonalizzato(dati.condominioAnnuoPersonalizzato);
     setManutenzioneOrdinariaPersonalizzata(dati.manutenzioneOrdinariaPersonalizzata);
     setManutenzioneStraordinariaPersonalizzata(
@@ -336,9 +373,7 @@ export default function CalcolatoreQuickMode() {
     setTassaArchivioPersonalizzata("");
     setAltriCostiAcquistoPersonalizzato("");
     setTariffaTariPersonalizzata("");
-    setEnergiaElettricaPersonalizzata("");
-    setGasPersonalizzato("");
-    setInternetPersonalizzato("");
+    setCoefficienteValorizzazioneRistrutturazionePersonalizzato("");
     setCondominioAnnuoPersonalizzato("");
     setManutenzioneOrdinariaPersonalizzata("");
     setManutenzioneStraordinariaPersonalizzata("");
@@ -383,6 +418,11 @@ export default function CalcolatoreQuickMode() {
       setUltimoSalvataggio(new Date());
       await aggiornaElencoSalvati();
       setMostraDialogoSalva(false);
+      setContatoreSincronizzazione((c) => c + 1);
+      if (destinazionePendente) {
+        router.push(destinazionePendente);
+        setDestinazionePendente(null);
+      }
     } catch (errore) {
       setErroreSalvataggio(
         errore instanceof Error ? errore.message : "Errore nel salvataggio."
@@ -401,13 +441,20 @@ export default function CalcolatoreQuickMode() {
     setNomeSalvataggio(immobile.nome);
     setUltimoSalvataggio(new Date(immobile.aggiornatoIl));
     setMostraListaSalvati(false);
+    setContatoreSincronizzazione((c) => c + 1);
   }
 
   // Se si arriva da /immobile?id=X (cliccando un immobile dal
   // portafoglio), carica automaticamente quel salvataggio all'apertura
   // — stessa logica di gestisciCaricaSalvato, innescata dall'URL invece
   // che da un click sul menu a tendina.
+  const router = useRouter();
   const searchParams = useSearchParams();
+  // Se arriva dal percorso guidato rapido ("investi"), i dati catastali
+  // (comune, categoria, rendita) sono ancora vuoti per costruzione — un
+  // banner lo segnala finché non vengono compilati, poi sparisce da solo.
+  const arrivoDaWizard = searchParams.get("daWizard") === "1";
+  const renditaCatastaleCompilata = unitaList.some((u) => u.renditaCatastale > 0);
   useEffect(() => {
     const idDaUrl = searchParams.get("id");
     if (idDaUrl) {
@@ -431,6 +478,41 @@ export default function CalcolatoreQuickMode() {
   function apriDialogoSalva() {
     setErroreSalvataggio(null);
     setMostraDialogoSalva(true);
+  }
+
+  // Conferma prima di lasciare la pagina con modifiche non salvate —
+  // per ora copre solo la navigazione interna al link "Portafoglio"
+  // (l'unico modo "silenzioso" di uscire che questa pagina offre): non
+  // intercetta la chiusura della scheda o il tasto indietro del
+  // browser, che richiederebbero un listener beforeunload separato.
+  const [destinazionePendente, setDestinazionePendente] = useState<string | null>(null);
+  const [mostraConfermaUscita, setMostraConfermaUscita] = useState(false);
+
+  function gestisciClickPortafoglio(e: React.MouseEvent) {
+    if (!hasModificheNonSalvate()) return; // nessuna modifica: lascia navigare normalmente
+    e.preventDefault();
+    setDestinazionePendente("/");
+    setMostraConfermaUscita(true);
+  }
+
+  function confermaEsciSenzaSalvare() {
+    setMostraConfermaUscita(false);
+    if (destinazionePendente) {
+      router.push(destinazionePendente);
+      setDestinazionePendente(null);
+    }
+  }
+
+  function confermaSalvaEdEsci() {
+    setMostraConfermaUscita(false);
+    // destinazionePendente resta impostata: la navigazione avviene alla
+    // fine di gestisciSalva, sia che parta da qui direttamente (nome
+    // già noto) sia che passi prima da DialogoSalva (nome mancante).
+    if (nomeSalvataggio.trim()) {
+      gestisciSalva();
+    } else {
+      apriDialogoSalva();
+    }
   }
 
   const etichettaRegimeAffitto =
@@ -462,9 +544,7 @@ export default function CalcolatoreQuickMode() {
       visureNotaioPersonalizzate,
       tassaArchivioPersonalizzata,
       tariffaTariPersonalizzata,
-      energiaElettricaPersonalizzata,
-      gasPersonalizzato,
-      internetPersonalizzato,
+      coefficienteValorizzazioneRistrutturazionePersonalizzato,
       condominioAnnuoPersonalizzato,
       manutenzioneOrdinariaPersonalizzata,
       manutenzioneStraordinariaPersonalizzata,
@@ -497,9 +577,7 @@ export default function CalcolatoreQuickMode() {
       visureNotaioPersonalizzate,
       tassaArchivioPersonalizzata,
       tariffaTariPersonalizzata,
-      energiaElettricaPersonalizzata,
-      gasPersonalizzato,
-      internetPersonalizzato,
+      coefficienteValorizzazioneRistrutturazionePersonalizzato,
       condominioAnnuoPersonalizzato,
       manutenzioneOrdinariaPersonalizzata,
       manutenzioneStraordinariaPersonalizzata,
@@ -511,9 +589,20 @@ export default function CalcolatoreQuickMode() {
     ]
   );
 
+  // parametriSimulazione cambia riferimento ad ogni tasto premuto in
+  // qualunque campo (è economico da ricostruire, quindi va bene così),
+  // ma calcolaSimulazione() e trovaValorePerTargetIrr() sono costosi
+  // (XIRR iterativo, goal-seek) — farli ripartire ad ogni carattere
+  // digitato è quello che rendeva la pagina lenta durante la
+  // digitazione. La versione debounced si aggiorna solo 300ms dopo
+  // l'ultima modifica: i campi restano immediati (sono legati allo
+  // stato "vero", non a questo), solo il calcolo derivato aspetta una
+  // pausa nella digitazione.
+  const parametriSimulazioneDebounced = useValoreDebounced(parametriSimulazione, 300);
+
   const risultati = useMemo(
-    () => calcolaSimulazione(parametriSimulazione),
-    [parametriSimulazione]
+    () => calcolaSimulazione(parametriSimulazioneDebounced),
+    [parametriSimulazioneDebounced]
   );
 
   // Target di default: il rendimento BTP già mostrato nel pannello
@@ -525,8 +614,13 @@ export default function CalcolatoreQuickMode() {
     : risultati.tassoBenchmarkEffettivo;
 
   const risultatoObiettivo = useMemo(
-    () => trovaValorePerTargetIrr(parametriSimulazione, levaObiettivo, targetIrrEffettivo),
-    [parametriSimulazione, levaObiettivo, targetIrrEffettivo]
+    () =>
+      trovaValorePerTargetIrr(
+        parametriSimulazioneDebounced,
+        levaObiettivo,
+        targetIrrEffettivo
+      ),
+    [parametriSimulazioneDebounced, levaObiettivo, targetIrrEffettivo]
   );
 
   const linkPianoAmmortamento = useMemo(() => {
@@ -575,15 +669,15 @@ export default function CalcolatoreQuickMode() {
       imu: String(risultati.imu),
       tari: String(risultati.tari.totale),
       addizionali: String(risultati.addizionali?.importo ?? 0),
-      energiaElettrica: String(risultati.utenze.energiaElettrica.totale),
-      gas: String(risultati.utenze.gas.totale),
-      internet: String(risultati.utenze.internet.totale),
       condominio: String(risultati.condominio.totale),
       manutenzioneOrdinaria: String(risultati.manutenzione.ordinaria),
       manutenzioneStraordinaria: String(risultati.manutenzione.straordinaria),
       assicurazione: String(risultati.assicurazione.totale),
       altriCosti: String(risultati.altriCostiAcquisto),
       ristrutturazione: String(ristrutturazione),
+      coefficienteRistrutturazione: String(
+        risultati.coefficienteValorizzazioneRistrutturazione
+      ),
       arredamento: String(arredamento),
       abitazionePrincipale: risultati.immobileAbitazionePrincipale ? "1" : "0",
       anni: String(anniInvestimento),
@@ -616,12 +710,12 @@ export default function CalcolatoreQuickMode() {
     risultati.imu,
     risultati.tari,
     risultati.addizionali,
-    risultati.utenze,
     risultati.condominio,
     risultati.manutenzione,
     risultati.assicurazione,
     risultati.altriCostiAcquisto,
     ristrutturazione,
+    risultati.coefficienteValorizzazioneRistrutturazione,
     arredamento,
     risultati.immobileAbitazionePrincipale,
     anniInvestimento,
@@ -637,9 +731,20 @@ export default function CalcolatoreQuickMode() {
         <header className="border-b border-[var(--rule)] px-6 py-5 lg:px-10">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h1 className="font-[var(--font-display)] text-2xl tracking-tight">
-                <Link href="/">CasaFlow</Link>
-              </h1>
+              <div className="flex items-baseline gap-3">
+                <Show when="signed-in">
+                  <Link
+                    href="/"
+                    onClick={gestisciClickPortafoglio}
+                    className="text-sm text-[var(--brass)] hover:underline"
+                  >
+                    ← Portafoglio
+                  </Link>
+                </Show>
+                <h1>
+                  <LogoCasaFlow />
+                </h1>
+              </div>
               <p className="mt-1 text-sm text-[var(--muted)]">
                 Simulatore di redditività per investimenti immobiliari
                 {" — "}
@@ -746,11 +851,16 @@ export default function CalcolatoreQuickMode() {
 
       {idImmobileCorrente && (
         <div className="border-b border-[var(--rule)] bg-[var(--brass)]/5 px-6 py-2.5 lg:px-10">
-          <p className="text-sm text-[var(--brass)]">
+          <p className="flex flex-wrap items-center gap-1.5 text-sm text-[var(--brass)]">
             Stai lavorando su:{" "}
             <span className="font-medium">{nomeSalvataggio}</span>
+            <PulsanteRinominaImmobile
+              id={idImmobileCorrente}
+              nomeAttuale={nomeSalvataggio}
+              onRinominato={(nuovoNome) => setNomeSalvataggio(nuovoNome)}
+            />
             {ultimoSalvataggio && (
-              <span className="ml-2 text-xs text-[var(--muted)]">
+              <span className="ml-1 text-xs text-[var(--muted)]">
                 (ultimo salvataggio {formatoDataOra.format(ultimoSalvataggio)})
               </span>
             )}
@@ -766,9 +876,70 @@ export default function CalcolatoreQuickMode() {
           onCambiaNome={setNomeSalvataggio}
           errore={erroreSalvataggio}
           salvataggioInCorso={salvataggioInCorso}
-          onAnnulla={() => setMostraDialogoSalva(false)}
+          onAnnulla={() => {
+            setMostraDialogoSalva(false);
+            setDestinazionePendente(null);
+          }}
           onSalva={gestisciSalva}
         />
+      )}
+
+      {mostraConfermaUscita &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+            onClick={() => setMostraConfermaUscita(false)}
+          >
+            <div
+              className="w-full max-w-sm rounded-sm border border-[var(--rule)] bg-[var(--surface)] p-5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="font-[var(--font-display)] text-lg text-[var(--brick)]">
+                Modifiche non salvate
+              </h3>
+              <p className="mt-2 text-sm leading-relaxed text-[var(--muted)]">
+                Hai modifiche non salvate su questo immobile. Se esci
+                senza salvare andranno perse.
+              </p>
+              <div className="mt-5 flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={confermaSalvaEdEsci}
+                  className="rounded-sm border border-[var(--brass)]/50 px-3 py-2 text-sm text-[var(--brass)] transition-colors hover:bg-[var(--brass)]/10"
+                >
+                  Salva ed esci
+                </button>
+                <button
+                  type="button"
+                  onClick={confermaEsciSenzaSalvare}
+                  className="rounded-sm border border-[var(--brick)]/50 px-3 py-2 text-sm text-[var(--brick)] transition-colors hover:bg-[var(--brick)]/10"
+                >
+                  Esci senza salvare
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMostraConfermaUscita(false)}
+                  className="rounded-sm border border-[var(--rule)] px-3 py-2 text-sm text-[var(--muted)] transition-colors hover:bg-white/5"
+                >
+                  Annulla
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {arrivoDaWizard && !renditaCatastaleCompilata && (
+        <div className="border-b border-[var(--rule)] bg-[var(--brass)]/5 px-6 py-3 lg:px-10">
+          <p className="text-sm text-[var(--brass)]">
+            Registro e IMU sono ancora stime provvisorie (zero o minimo di legge).
+          </p>
+          <p className="mt-0.5 text-xs text-[var(--muted)]">
+            Compila comune, categoria e rendita catastale dell&apos;unità
+            qui sotto per un calcolo esatto.
+          </p>
+        </div>
       )}
 
       <main className="grid grid-cols-1 gap-8 px-6 py-8 lg:grid-cols-[1fr_380px] lg:px-10">
@@ -778,7 +949,7 @@ export default function CalcolatoreQuickMode() {
               label="Prezzo di acquisto" infoId="prezzo-acquisto"
               unita="€"
             >
-              <InputNumero valore={prezzoAcquisto} onChange={setPrezzoAcquisto} />
+              <InputNumeroMigliaia valore={prezzoAcquisto} onChange={setPrezzoAcquisto} />
             </Campo>
             <Campo
               label="Data di acquisto" infoId="data-acquisto"
@@ -831,7 +1002,7 @@ export default function CalcolatoreQuickMode() {
                     className={classiInput}
                     type="number"
                     step={10}
-                    placeholder={`auto (${PERCENTUALE_NOTAIO_DEFAULT_UI}% del prezzo)`}
+                    placeholder={`auto (${formatoEuro.format(ONORARIO_NOTAIO_FISSO_DEFAULT)} + ${(ONORARIO_NOTAIO_PERCENTUALE_DEFAULT * 100).toFixed(1)}% del prezzo)`}
                     value={onorarioNotaioPersonalizzato}
                     onChange={(e) =>
                       setOnorarioNotaioPersonalizzato(e.target.value)
@@ -839,8 +1010,10 @@ export default function CalcolatoreQuickMode() {
                   />
                   <span className="mt-1.5 block text-[10px] text-[var(--muted)]">
                     Valore assoluto (es. dal preventivo reale) — se vuoto,
-                    si stima come {PERCENTUALE_NOTAIO_DEFAULT_UI}% del
-                    prezzo.
+                    si stima come {formatoEuro.format(ONORARIO_NOTAIO_FISSO_DEFAULT)}
+                    {" "}+ {(ONORARIO_NOTAIO_PERCENTUALE_DEFAULT * 100).toFixed(1)}% del
+                    prezzo (assunzione empirica, non una formula pubblicata —
+                    vedi <Link href="/documentazione#onorario-notaio" target="_blank" className="text-[var(--brass)] hover:underline">Come funziona</Link>).
                   </span>
                 </Campo>
                 <Campo label="Visure ipotecarie/catastali" infoId="visure-notarili-personalizzate" unita="€">
@@ -901,10 +1074,10 @@ export default function CalcolatoreQuickMode() {
 
           <SezioneForm numero="02" titolo="Costi di avviamento">
             <Campo label="Ristrutturazione" infoId="ristrutturazione" unita="€">
-              <InputNumero valore={ristrutturazione} onChange={setRistrutturazione} />
+              <InputNumeroMigliaia valore={ristrutturazione} onChange={setRistrutturazione} />
             </Campo>
             <Campo label="Arredamento" infoId="arredamento" unita="€">
-              <InputNumero valore={arredamento} onChange={setArredamento} />
+              <InputNumeroMigliaia valore={arredamento} onChange={setArredamento} />
             </Campo>
             <Campo label="Altri costi non detraibili" infoId="altri-costi" unita="€">
               <input
@@ -950,7 +1123,7 @@ export default function CalcolatoreQuickMode() {
               label="Importo finanziato" infoId="importo-mutuo"
               unita="€ — 0 se non richiesto"
             >
-              <InputNumero valore={importoMutuo} onChange={setImportoMutuo} />
+              <InputNumeroMigliaia valore={importoMutuo} onChange={setImportoMutuo} />
             </Campo>
 
             {mutuoRichiesto ? (
@@ -1023,14 +1196,14 @@ export default function CalcolatoreQuickMode() {
 
           <SezioneForm numero="04" titolo="Affitto">
             <Campo label="Affitto lordo annuo atteso" infoId="affitto-lordo" unita="€/anno">
-              <InputNumero
+              <InputNumeroMigliaia
                 valore={affittoLordoAnnuo}
                 onChange={setAffittoLordoAnnuo}
               />
             </Campo>
 
             <Campo label="Oneri accessori" infoId="oneri-accessori" unita="€/anno">
-              <InputNumero
+              <InputNumeroMigliaia
                 valore={oneriAccessoriAnnui}
                 onChange={setOneriAccessoriAnnui}
               />
@@ -1043,7 +1216,7 @@ export default function CalcolatoreQuickMode() {
 
             {affittoLordoAnnuo === 0 && (
               <Campo label="Rendita figurativa" infoId="rendita-figurativa" unita="€/anno">
-                <InputNumero
+                <InputNumeroMigliaia
                   valore={renditaFigurativaAnnua}
                   onChange={setRenditaFigurativaAnnua}
                 />
@@ -1152,48 +1325,12 @@ export default function CalcolatoreQuickMode() {
                     onChange={(e) => setTariffaTariPersonalizzata(e.target.value)}
                   />
                 </Campo>
-                <Campo label="Energia elettrica" infoId="energia-elettrica" unita="€/anno">
-                  <input
-                    className={classiInput}
-                    type="number"
-                    step={10}
-                    placeholder="stima automatica"
-                    value={energiaElettricaPersonalizzata}
-                    onChange={(e) =>
-                      setEnergiaElettricaPersonalizzata(e.target.value)
-                    }
-                  />
-                </Campo>
-                <Campo label="Gas" infoId="gas" unita="€/anno">
-                  <input
-                    className={classiInput}
-                    type="number"
-                    step={10}
-                    placeholder="stima automatica"
-                    value={gasPersonalizzato}
-                    onChange={(e) => setGasPersonalizzato(e.target.value)}
-                  />
-                </Campo>
-                <Campo label="Internet" infoId="internet" unita="€/anno">
-                  <input
-                    className={classiInput}
-                    type="number"
-                    step={10}
-                    placeholder="stima automatica"
-                    value={internetPersonalizzato}
-                    onChange={(e) => setInternetPersonalizzato(e.target.value)}
-                  />
-                </Campo>
-                <span className="sm:col-span-2 -mt-2 block text-[10px] text-[var(--muted)]">
-                  Utenze: default prudenziali — di norma le paga
-                  l&apos;inquilino.
-                </span>
                 <Campo label="Manutenzione ordinaria" infoId="manutenzione-ordinaria" unita="%/anno">
                   <input
                     className={classiInput}
                     type="number"
                     step={0.1}
-                    placeholder={`auto (${PERCENTUALE_MANUTENZIONE_ORDINARIA_UI}%)`}
+                    placeholder={`auto (${(PERCENTUALE_MANUTENZIONE_ORDINARIA_DEFAULT * 100).toFixed(1)}%)`}
                     value={manutenzioneOrdinariaPersonalizzata}
                     onChange={(e) =>
                       setManutenzioneOrdinariaPersonalizzata(e.target.value)
@@ -1208,7 +1345,7 @@ export default function CalcolatoreQuickMode() {
                     className={classiInput}
                     type="number"
                     step={0.1}
-                    placeholder={`auto (${PERCENTUALE_MANUTENZIONE_STRAORDINARIA_UI}%)`}
+                    placeholder={`auto (${(PERCENTUALE_MANUTENZIONE_STRAORDINARIA_DEFAULT * 100).toFixed(1)}%)`}
                     value={manutenzioneStraordinariaPersonalizzata}
                     onChange={(e) =>
                       setManutenzioneStraordinariaPersonalizzata(e.target.value)
@@ -1252,6 +1389,39 @@ export default function CalcolatoreQuickMode() {
                 {formatoEuroPreciso.format(risultati.valoreStimatoRivendita)}
               </span>
             </Campo>
+
+            {modalitaAvanzata && ristrutturazione > 0 && (
+              <BoxAvanzato>
+                <Campo
+                  label="Quanto della spesa di ristrutturazione pensi si rifletta sul valore dell'immobile?"
+                  infoId="coefficiente-valorizzazione-ristrutturazione"
+                  unita="%"
+                >
+                  <input
+                    className={classiInput}
+                    type="number"
+                    step={5}
+                    min={0}
+                    max={150}
+                    placeholder={`auto (${(COEFFICIENTE_VALORIZZAZIONE_RISTRUTTURAZIONE_DEFAULT * 100).toFixed(0)}%)`}
+                    value={coefficienteValorizzazioneRistrutturazionePersonalizzato}
+                    onChange={(e) =>
+                      setCoefficienteValorizzazioneRistrutturazionePersonalizzato(e.target.value)
+                    }
+                  />
+                  <span className="mt-1.5 block text-[10px] text-[var(--muted)]">
+                    Una ristrutturazione non aumenta necessariamente il
+                    valore dell&apos;immobile dello stesso importo speso.
+                    CasaFlow utilizza il{" "}
+                    {(COEFFICIENTE_VALORIZZAZIONE_RISTRUTTURAZIONE_DEFAULT * 100).toFixed(0)}%
+                    come ipotesi iniziale — influisce solo sul prezzo di
+                    vendita stimato (Sezione 02, "Ristrutturazione"),
+                    mai sull&apos;esborso iniziale, che resta sempre il
+                    100% della spesa indicata lì.
+                  </span>
+                </Campo>
+              </BoxAvanzato>
+            )}
           </SezioneForm>
         </div>
 
@@ -1280,6 +1450,9 @@ export default function CalcolatoreQuickMode() {
 
           <PannelloRivenditaStimata
             risultati={risultati}
+            prezzoAcquisto={prezzoAcquisto}
+            ristrutturazione={ristrutturazione}
+            rivalutazioneAnnuaPercentuale={rivalutazioneAnnuaPercentuale}
             anniInvestimento={anniInvestimento}
           />
 

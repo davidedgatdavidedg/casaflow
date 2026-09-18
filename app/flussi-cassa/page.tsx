@@ -1,5 +1,6 @@
 // app/flussi-cassa/page.tsx
 import Link from "next/link";
+import LogoCasaFlow from "@/components/logo-casaflow";
 import { Show, SignInButton, UserButton } from "@clerk/nextjs";
 import {
   calcolaFlussiCassa,
@@ -58,15 +59,13 @@ interface PageProps {
     imu?: string;
     tari?: string;
     addizionali?: string;
-    energiaElettrica?: string;
-    gas?: string;
-    internet?: string;
     condominio?: string;
     manutenzioneOrdinaria?: string;
     manutenzioneStraordinaria?: string;
     assicurazione?: string;
     altriCosti?: string;
     ristrutturazione?: string;
+    coefficienteRistrutturazione?: string;
     arredamento?: string;
     abitazionePrincipale?: string;
     anni?: string;
@@ -123,9 +122,6 @@ export default async function FlussiCassaPage({ searchParams }: PageProps) {
         imuAnnua: parseFloat(params.imu ?? "0"),
         tariAnnua: parseFloat(params.tari ?? "0"),
         addizionaliAnnue: parseFloat(params.addizionali ?? "0"),
-        energiaElettricaAnnua: parseFloat(params.energiaElettrica ?? "0"),
-        gasAnnuo: parseFloat(params.gas ?? "0"),
-        internetAnnuo: parseFloat(params.internet ?? "0"),
         condominioAnnuo: parseFloat(params.condominio ?? "0"),
         manutenzioneOrdinariaAnnua: parseFloat(params.manutenzioneOrdinaria ?? "0"),
         manutenzioneStraordinariaAnnua: parseFloat(
@@ -165,6 +161,13 @@ export default async function FlussiCassaPage({ searchParams }: PageProps) {
   }));
 
   const nomeImmobile = params.nome ?? null;
+  // null se non c'è ristrutturazione: coerente con la semantica di
+  // TabellaMovimenti, dove null significa "non rilevante per questa
+  // simulazione", non "0%" (che invece sarebbe un valore scelto).
+  const coefficienteValorizzazioneRistrutturazione =
+    parseFloat(params.ristrutturazione ?? "0") > 0
+      ? parseFloat(params.coefficienteRistrutturazione ?? "0")
+      : null;
   const linkRitorno = params.idImmobile
     ? `/immobile?id=${params.idImmobile}`
     : "/immobile";
@@ -182,8 +185,8 @@ export default async function FlussiCassaPage({ searchParams }: PageProps) {
                 <Link href={linkRitorno} className="text-sm text-[var(--brass)] hover:underline">
                   ← Torna al calcolatore
                 </Link>
-                <h1 className="font-[var(--font-display)] text-2xl tracking-tight">
-                  <Link href="/">CasaFlow</Link>
+                <h1>
+                  <LogoCasaFlow />
                 </h1>
               </div>
               <p className="mt-1 text-sm text-[var(--muted)]">
@@ -294,6 +297,7 @@ export default async function FlussiCassaPage({ searchParams }: PageProps) {
                 transazioni={transazioni}
                 anniInvestimento={anniInvestimento}
                 nomeImmobile={nomeImmobile}
+                coefficienteValorizzazioneRistrutturazione={coefficienteValorizzazioneRistrutturazione}
               />
             </div>
 

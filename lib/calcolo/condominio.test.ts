@@ -3,9 +3,9 @@ import { describe, it, expect } from "vitest";
 import { calcolaSpeseCondominio } from "./condominio";
 
 describe("calcolaSpeseCondominio", () => {
-  it("senza importo personalizzato, stima dalla metratura col default prudenziale", () => {
+  it("senza importo personalizzato, stima dalla metratura col default di mercato", () => {
     const risultato = calcolaSpeseCondominio(80);
-    expect(risultato.totale).toBeCloseTo(400, 2); // 80 * 5€/mq
+    expect(risultato.totale).toBeCloseTo(1600, 2); // 80 * 20€/mq
   });
 
   it("un importo assoluto personalizzato ha sempre la precedenza sulla stima", () => {

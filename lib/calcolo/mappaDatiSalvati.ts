@@ -63,9 +63,6 @@ export function mappaDatiSalvatiAParametriSimulazione(
     visureNotaioPersonalizzate: (dati.visureNotaioPersonalizzate as string) ?? "",
     tassaArchivioPersonalizzata: (dati.tassaArchivioPersonalizzata as string) ?? "",
     tariffaTariPersonalizzata: (dati.tariffaTariPersonalizzata as string) ?? "",
-    energiaElettricaPersonalizzata: (dati.energiaElettricaPersonalizzata as string) ?? "",
-    gasPersonalizzato: (dati.gasPersonalizzato as string) ?? "",
-    internetPersonalizzato: (dati.internetPersonalizzato as string) ?? "",
     condominioAnnuoPersonalizzato: (dati.condominioAnnuoPersonalizzato as string) ?? "",
     manutenzioneOrdinariaPersonalizzata:
       (dati.manutenzioneOrdinariaPersonalizzata as string) ?? "",
@@ -73,6 +70,13 @@ export function mappaDatiSalvatiAParametriSimulazione(
       (dati.manutenzioneStraordinariaPersonalizzata as string) ?? "",
     assicurazionePersonalizzata: (dati.assicurazionePersonalizzata as string) ?? "",
     altriCostiAcquistoPersonalizzato: (dati.altriCostiAcquistoPersonalizzato as string) ?? "",
+    // Salvataggi precedenti a questo campo non ce l'hanno affatto nel
+    // JSON: il fallback a stringa vuota fa sì che calcolaSimulazione
+    // applichi automaticamente COEFFICIENTE_VALORIZZAZIONE_RISTRUTTURAZIONE_DEFAULT
+    // (75%), esattamente come per ogni altro override "avanzato" —
+    // nessun trattamento speciale necessario per la retrocompatibilità.
+    coefficienteValorizzazioneRistrutturazionePersonalizzato:
+      (dati.coefficienteValorizzazioneRistrutturazionePersonalizzato as string) ?? "",
     ristrutturazione: (dati.ristrutturazione as number) ?? 0,
     arredamento: (dati.arredamento as number) ?? 0,
     tassoBenchmarkPersonalizzato: "", // mai salvato: l'utente lo corregge di volta in volta

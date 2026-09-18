@@ -1,5 +1,6 @@
 // app/piano-ammortamento/page.tsx
 import Link from "next/link";
+import LogoCasaFlow from "@/components/logo-casaflow";
 import { calcolaPianoAmmortamento } from "@/lib/calcolo/ammortamento";
 import type { Mutuo } from "@/lib/calcolo/tipi";
 
@@ -84,13 +85,14 @@ export default async function PianoAmmortamentoPage({ searchParams }: PageProps)
 
   return (
     <div className="min-h-screen bg-[var(--ink)] px-6 py-8 text-[var(--ink-text)] lg:px-10">
-      <div className="mb-6">
+      <div className="mb-6 flex items-baseline gap-3">
         <Link
           href="/"
           className="text-sm text-[var(--brass)] hover:underline"
         >
           ← Torna al calcolatore
         </Link>
+        <LogoCasaFlow />
       </div>
 
       <h1 className="font-[var(--font-display)] text-2xl tracking-tight">

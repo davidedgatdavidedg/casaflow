@@ -5,7 +5,7 @@ import { calcolaTari } from "./tari";
 describe("calcolaTari", () => {
   it("senza importo personalizzato, stima dalla metratura col default di mercato", () => {
     const risultato = calcolaTari(80);
-    expect(risultato.totale).toBeCloseTo(200, 2); // 80 * 2.5€/mq
+    expect(risultato.totale).toBeCloseTo(160, 2); // 80 * 2€/mq
   });
 
   it("un importo assoluto personalizzato ha sempre la precedenza sulla stima", () => {

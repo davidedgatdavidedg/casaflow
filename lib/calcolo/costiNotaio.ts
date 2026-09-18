@@ -8,19 +8,27 @@ export interface CostiNotaio {
 }
 
 /**
- * Percentuale usata SOLO per la stima automatica in modalità base
+ * Parametri usati SOLO per la stima automatica in modalità base
  * dell'onorario notarile (esclude imposte di registro, ipotecaria,
  * catastale — calcolate in imposteAcquisto.ts — e le spese di
  * attivazione mutuo, calcolate in speseMutuo.ts).
  *
- * Valore tipico di mercato — NON normato per legge: gli onorari notarili
- * sono liberamente negoziabili dal 2006 (D.L. 4 luglio 2006, n. 223,
- * "decreto Bersani", art. 2, comma 1, lett. b), quindi variano da notaio
- * a notaio e in base alla complessità dell'atto. In modalità avanzata
- * l'utente inserisce direttamente l'importo assoluto (es. il preventivo
- * reale del proprio notaio), non più questa percentuale.
+ * Formula: 1.000€ fisso + 0,5% del prezzo di acquisto.
+ *
+ * NON è una regola pubblicata né un tariffario ufficiale: gli onorari
+ * notarili sono liberamente negoziabili dal 2006 (D.L. 4 luglio 2006,
+ * n. 223, "decreto Bersani", art. 2, comma 1, lett. b), quindi variano
+ * da notaio a notaio e in base alla complessità dell'atto — non esiste
+ * una fonte normativa o statistica verificabile da citare. Questa
+ * combinazione (fisso + percentuale) è un'assunzione basata su alcuni
+ * dati empirici osservati, indicata direttamente dall'utente del
+ * progetto sulla base della propria esperienza — non uno standard di
+ * settore. In modalità avanzata l'utente inserisce direttamente
+ * l'importo assoluto (es. il preventivo reale del proprio notaio), non
+ * più questa stima.
  */
-export const PERCENTUALE_ONORARIO_NOTAIO_DEFAULT = 0.02;
+export const ONORARIO_NOTAIO_FISSO_DEFAULT = 1000;
+export const ONORARIO_NOTAIO_PERCENTUALE_DEFAULT = 0.005;
 
 /**
  * Spese per visure ipotecarie e catastali: sono l'anticipazione che il
@@ -56,7 +64,7 @@ const TASSA_ARCHIVIO_DEFAULT = 35;
  * @param prezzoAcquisto Prezzo di acquisto dell'immobile
  * @param onorarioPersonalizzato Importo ASSOLUTO in € dell'onorario, se
  *   noto con precisione (es. preventivo reale). Se assente, si stima
- *   automaticamente come 2% del prezzo di acquisto.
+ *   automaticamente come 1.000€ + 0,5% del prezzo di acquisto.
  * @param visure Spese per visure ipotecarie/catastali (default: 150€, mercato)
  * @param tassaArchivio Tassa archivio notarile (default: 35€, stima indicativa)
  */
@@ -73,7 +81,10 @@ export function calcolaCostiNotaio(
   // qualsiasi dato inserito.
   const onorario = arrotonda(
     onorarioPersonalizzato ??
-      (prezzoAcquisto > 0 ? prezzoAcquisto * PERCENTUALE_ONORARIO_NOTAIO_DEFAULT : 0)
+      (prezzoAcquisto > 0
+        ? ONORARIO_NOTAIO_FISSO_DEFAULT +
+          prezzoAcquisto * ONORARIO_NOTAIO_PERCENTUALE_DEFAULT
+        : 0)
   );
   const visure = arrotonda(
     visurePersonalizzate ?? (prezzoAcquisto > 0 ? VISURE_DEFAULT : 0)

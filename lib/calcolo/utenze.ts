@@ -18,25 +18,24 @@ export interface Utenze {
 }
 
 /**
- * Costi annui stimati — valori prudenziali di mercato, NON normati per
- * legge. In un affitto standard non arredato le utenze sono quasi sempre
- * intestate e pagate dall'inquilino: questi default rappresentano un
- * margine di sicurezza (es. per periodi di sfitto) più che un costo
- * ricorrente pieno a carico del proprietario.
- *
- * Energia elettrica e gas sono stimati come proxy interno €/mq/anno
- * (consumo tipicamente proporzionale alla superficie); l'internet è un
- * costo fisso per abitazione, non scala con la metratura.
+ * Default a ZERO per tutte e tre le voci. In un affitto standard non
+ * arredato le utenze sono quasi sempre intestate e pagate direttamente
+ * dall'inquilino, non dal proprietario: stimare un importo diverso da
+ * zero rischierebbe di sovrastimare sistematicamente un costo che, nella
+ * maggior parte dei casi reali, non è a carico di chi affitta. L'utente
+ * inserisce un importo assoluto solo se, nel proprio caso specifico, le
+ * utenze restano effettivamente a proprio carico.
  */
-const COSTO_ENERGIA_ELETTRICA_DEFAULT_PER_MQ = 1.5;
-const COSTO_GAS_DEFAULT_PER_MQ = 1.2;
-const COSTO_INTERNET_DEFAULT_ANNUO = 240; // ~20€/mese
+export const COSTO_ENERGIA_ELETTRICA_DEFAULT_PER_MQ = 0;
+export const COSTO_GAS_DEFAULT_PER_MQ = 0;
+export const COSTO_INTERNET_DEFAULT_ANNUO = 0;
 
 /**
  * Calcola le tre voci di utenze. Ogni voce, se non specificata
  * esplicitamente come totale annuo, viene stimata a partire dalla
- * metratura (solo energia elettrica e gas — l'internet resta un importo
- * fisso indipendente dalla superficie).
+ * metratura (default a zero — vedi sopra: energia e gas restano
+ * proporzionali ai mq per coerenza con le altre voci al mq, ma con
+ * moltiplicatore nullo finché non se ne cambia il default).
  *
  * @param metriQuadri Superficie dell'immobile, usata solo come proxy di stima
  * @param energiaElettricaAnnua Totale annuo esplicito, se noto
@@ -52,12 +51,7 @@ export function calcolaUtenze(
   const energiaElettrica =
     energiaElettricaAnnua ?? arrotonda(metriQuadri * COSTO_ENERGIA_ELETTRICA_DEFAULT_PER_MQ);
   const gas = gasAnnuo ?? arrotonda(metriQuadri * COSTO_GAS_DEFAULT_PER_MQ);
-  // L'internet è un costo fisso indipendente dalla metratura — ma se
-  // non c'è ancora nessuna metratura inserita (nessun immobile definito
-  // davvero), non ha senso stimarlo comunque: sarebbe un costo
-  // "fantasma" che non si azzera mai, a differenza di energia e gas che
-  // scalano naturalmente a zero con mq=0.
-  const internet = internetAnnuo ?? (metriQuadri > 0 ? COSTO_INTERNET_DEFAULT_ANNUO : 0);
+  const internet = internetAnnuo ?? COSTO_INTERNET_DEFAULT_ANNUO;
 
   return {
     energiaElettrica: { totale: arrotonda(energiaElettrica) },

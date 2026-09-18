@@ -102,8 +102,8 @@ export const CAMPI_DOCUMENTATI: CampoDocumentato[] = [
     etichetta: "Metri quadri",
     sezione: "Immobile — Unità catastali",
     spiegazioneBreve:
-      "Usati per stimare in automatico le spese proporzionali alla metratura: utenze, condominio, assicurazione, TARI — tutte sovrascrivibili con un importo assoluto se lo conosci.",
-    vociImpattate: ["energia-elettrica", "gas", "condominio", "assicurazione", "tari"],
+      "Usati per stimare in automatico le spese proporzionali alla metratura: TARI, spese condominiali e assicurazione. Tutte sovrascrivibili con un importo assoluto se lo conosci.",
+    vociImpattate: ["condominio", "assicurazione", "tari"],
   },
   {
     id: "aliquota-imu-personalizzata",
@@ -117,7 +117,7 @@ export const CAMPI_DOCUMENTATI: CampoDocumentato[] = [
     id: "onorario-notaio-personalizzato",
     etichetta: "Onorario notaio",
     sezione: "Immobile — avanzate",
-    spiegazioneBreve: "Sostituisce la stima automatica (2% del prezzo) con l'importo reale, se lo conosci da un preventivo.",
+    spiegazioneBreve: "Sostituisce la stima automatica (1.000€ + 0,5% del prezzo — un'assunzione empirica, non una formula pubblicata) con l'importo reale, se lo conosci da un preventivo.",
     vociImpattate: ["onorario-notaio"],
   },
   {
@@ -150,7 +150,15 @@ export const CAMPI_DOCUMENTATI: CampoDocumentato[] = [
     sezione: "Costi di avviamento",
     spiegazioneBreve:
       "Spesa una tantum per lavori di ristrutturazione. Genera anche una detrazione fiscale spalmata su 10 anni (50% se prima casa, 36% altrimenti), e abilita il bonus mobili se compili anche Arredamento.",
-    vociImpattate: ["ristrutturazione-costo", "detrazione-ristrutturazione", "detrazione-mobili"],
+    vociImpattate: ["ristrutturazione-costo", "detrazione-ristrutturazione", "detrazione-mobili", "valore-rivendita"],
+  },
+  {
+    id: "coefficiente-valorizzazione-ristrutturazione",
+    etichetta: "Quanto della spesa di ristrutturazione pensi si rifletta sul valore dell'immobile?",
+    sezione: "Orizzonte investimento — avanzate",
+    spiegazioneBreve:
+      "Visibile solo se hai valorizzato Ristrutturazione (Sezione 02). Un euro speso in lavori non diventa necessariamente un euro di valore di mercato in più: di default CasaFlow ne considera il 75% ai fini del prezzo di vendita stimato — personalizzabile qui. Non riduce mai l'esborso iniziale, che resta sempre al 100% della spesa.",
+    vociImpattate: ["valore-rivendita"],
   },
   {
     id: "arredamento",
@@ -252,36 +260,15 @@ export const CAMPI_DOCUMENTATI: CampoDocumentato[] = [
     id: "condominio",
     etichetta: "Spese condominiali",
     sezione: "Costi ricorrenti",
-    spiegazioneBreve: "Importo annuo, con una stima automatica proporzionale alla metratura se lo lasci vuoto.",
+    spiegazioneBreve: "Importo annuo, con una stima automatica di 20€/mq/anno (quota straordinaria) se lo lasci vuoto.",
     vociImpattate: ["condominio"],
   },
   {
     id: "tari-personalizzata",
     etichetta: "TARI",
     sezione: "Costi ricorrenti — avanzate",
-    spiegazioneBreve: "Sostituisce la stima automatica (2,5€/mq) con l'importo reale del tuo comune.",
+    spiegazioneBreve: "Sostituisce la stima automatica (2€/mq) con l'importo reale del tuo comune.",
     vociImpattate: ["tari"],
-  },
-  {
-    id: "energia-elettrica",
-    etichetta: "Energia elettrica",
-    sezione: "Costi ricorrenti — avanzate",
-    spiegazioneBreve: "Sostituisce la stima automatica proporzionale alla metratura con l'importo reale.",
-    vociImpattate: ["energia-elettrica"],
-  },
-  {
-    id: "gas",
-    etichetta: "Gas",
-    sezione: "Costi ricorrenti — avanzate",
-    spiegazioneBreve: "Sostituisce la stima automatica proporzionale alla metratura con l'importo reale.",
-    vociImpattate: ["gas"],
-  },
-  {
-    id: "internet",
-    etichetta: "Internet",
-    sezione: "Costi ricorrenti — avanzate",
-    spiegazioneBreve: "Sostituisce il valore fisso di default con l'importo reale del tuo abbonamento.",
-    vociImpattate: ["internet"],
   },
   {
     id: "manutenzione-ordinaria",

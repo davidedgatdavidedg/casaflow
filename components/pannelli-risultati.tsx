@@ -190,18 +190,6 @@ export function PannelloCostiRicorrenti({
           />
         )}
         <RigaDati
-          etichetta="Energia elettrica"
-          valore={formatoEuroColonna.format(risultati.utenze.energiaElettrica.totale)}
-        />
-        <RigaDati
-          etichetta="Gas"
-          valore={formatoEuroColonna.format(risultati.utenze.gas.totale)}
-        />
-        <RigaDati
-          etichetta="Internet"
-          valore={formatoEuroColonna.format(risultati.utenze.internet.totale)}
-        />
-        <RigaDati
           etichetta="Spese condominiali"
           valore={formatoEuroColonna.format(risultati.condominio.totale)}
         />
@@ -227,9 +215,15 @@ export function PannelloCostiRicorrenti({
 
 export function PannelloRivenditaStimata({
   risultati,
+  prezzoAcquisto,
+  ristrutturazione,
+  rivalutazioneAnnuaPercentuale,
   anniInvestimento,
 }: {
   risultati: RisultatiSimulazione;
+  prezzoAcquisto: number;
+  ristrutturazione: number;
+  rivalutazioneAnnuaPercentuale: number;
   anniInvestimento: number;
 }) {
   return (
@@ -238,6 +232,23 @@ export function PannelloRivenditaStimata({
         Rivendita stimata
       </h2>
       <dl className="mt-4 space-y-3 font-[var(--font-mono)] text-sm">
+        {ristrutturazione > 0 && (
+          <>
+            <RigaDati etichetta="Prezzo di acquisto" valore={formatoEuroColonna.format(prezzoAcquisto)} />
+            <RigaDati etichetta="Lavori" valore={formatoEuroColonna.format(ristrutturazione)} />
+            <RigaDati
+              etichetta={`Valore attribuito ai lavori (${(risultati.coefficienteValorizzazioneRistrutturazione * 100).toFixed(0)}%)`}
+              valore={formatoEuroColonna.format(risultati.valoreRistrutturazione)}
+            />
+            <RigaDati
+              etichetta="Valore base stimato post-lavori"
+              valore={formatoEuroColonna.format(risultati.valoreBaseVendita)}
+            />
+            <div className="border-t border-[var(--rule)] pt-3" />
+          </>
+        )}
+        <RigaDati etichetta="Rivalutazione annua" valore={`${rivalutazioneAnnuaPercentuale.toFixed(2).replace(".", ",")}%`} />
+        <RigaDati etichetta="Orizzonte" valore={`${anniInvestimento} anni`} />
         <RigaDati
           etichetta={`Valore dopo ${anniInvestimento} anni`}
           valore={formatoEuroColonna.format(risultati.valoreStimatoRivendita)}

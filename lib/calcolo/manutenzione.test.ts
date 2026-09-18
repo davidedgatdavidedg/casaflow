@@ -3,11 +3,11 @@ import { describe, it, expect } from "vitest";
 import { calcolaManutenzione } from "./manutenzione";
 
 describe("calcolaManutenzione", () => {
-  it("calcola ordinaria e straordinaria con le percentuali di default", () => {
+  it("calcola ordinaria e straordinaria con le percentuali di default (0,1% ciascuna)", () => {
     const risultato = calcolaManutenzione(200000);
-    expect(risultato.ordinaria).toBeCloseTo(2000, 2); // 1%
-    expect(risultato.straordinaria).toBeCloseTo(600, 2); // 0.3%
-    expect(risultato.totale).toBeCloseTo(2600, 2);
+    expect(risultato.ordinaria).toBeCloseTo(200, 2); // 0.1%
+    expect(risultato.straordinaria).toBeCloseTo(200, 2); // 0.1%
+    expect(risultato.totale).toBeCloseTo(400, 2);
   });
 
   it("permette di personalizzare le percentuali", () => {

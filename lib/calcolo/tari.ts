@@ -12,11 +12,9 @@ export interface Tari {
  * utenze). NON è un dato normato a livello nazionale: ogni Comune
  * delibera la propria tariffa (quota fissa per mq + quota variabile per
  * numero di occupanti/tipologia di utenza — DPR 158/1999), quindi questo
- * è un valore medio di mercato per un'utenza domestica tipica,
- * verificato il 30/08/2026 su fonti aggregate (range osservato
- * 2-3,5€/mq/anno per abitazioni).
+ * è un valore medio di mercato per un'utenza domestica tipica.
  */
-export const TARIFFA_TARI_DEFAULT_PER_MQ = 2.5;
+export const TARIFFA_TARI_DEFAULT_PER_MQ = 2;
 
 /**
  * Stima la TARI annua.

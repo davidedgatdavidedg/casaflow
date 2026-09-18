@@ -1,7 +1,9 @@
 // app/documentazione/page.tsx
 import Link from "next/link";
+import LogoCasaFlow from "@/components/logo-casaflow";
 import { Show, SignInButton, UserButton } from "@clerk/nextjs";
 import { VOCI_DOCUMENTATE, type CategoriaVoceDoc } from "@/lib/documentazione/voci";
+import PulsanteIndietro from "@/components/pulsante-indietro";
 
 const ETICHETTE_CATEGORIA: Record<CategoriaVoceDoc, string> = {
   investimenti: "Investimenti",
@@ -28,11 +30,9 @@ export default function DocumentazionePage() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <div className="flex items-baseline gap-3">
-              <Link href="/immobile" className="text-sm text-[var(--brass)] hover:underline">
-                ← Torna al calcolatore
-              </Link>
-              <h1 className="font-[var(--font-display)] text-2xl tracking-tight">
-                <Link href="/">CasaFlow</Link>
+              <PulsanteIndietro className="text-sm text-[var(--brass)] hover:underline" />
+              <h1>
+                <LogoCasaFlow />
               </h1>
             </div>
             <p className="mt-1 text-sm text-[var(--muted)]">
