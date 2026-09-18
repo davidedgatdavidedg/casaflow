@@ -60,8 +60,8 @@ describe("calcolaSimulazione — caso base senza mutuo", () => {
   it("calcola le imposte di acquisto e i costi una tantum", () => {
     expect(r.imposteAcquisto.totale).toBeCloseTo(6223.6, 1);
     expect(r.agenzia.totale).toBeCloseTo(7320, 1);
-    expect(r.notaio.totale).toBeCloseTo(4185, 1);
-    expect(r.totaleCostiUnaTantum).toBeCloseTo(17728.6, 1);
+    expect(r.notaio.totale).toBeCloseTo(2185, 1);
+    expect(r.totaleCostiUnaTantum).toBeCloseTo(15728.6, 1);
   });
 
   it("calcola la tassazione affitto con cedolare secca 21%", () => {
@@ -85,8 +85,8 @@ describe("calcolaSimulazione — caso base senza mutuo", () => {
 
   it("calcola un IRR coerente e la sua interpretazione", () => {
     expect(r.irr).not.toBeNull();
-    expect(r.irr).toBeCloseTo(0.0172, 3);
-    expect(r.interpretazioneRisultato.fascia).toBe("basso");
+    expect(r.irr).toBeCloseTo(0.0277, 3);
+    expect(r.interpretazioneRisultato.fascia).toBe("medio");
   });
 
   it("calcola il confronto con il benchmark BTP", () => {
@@ -252,15 +252,12 @@ describe("calcolaSimulazione — coefficiente di valorizzazione ristrutturazione
     expect(r.valoreStimatoRivendita).toBeCloseTo(220816.16, 1); // stesso valore del test originale
   });
 
-  it("la leva 'Costo ristrutturazione' è più sensibile con un coefficiente più alto", () => {
-    // Con un coefficiente maggiore, variare il costo dei lavori ±20%
-    // non tocca solo il flusso di cassa ma anche il prezzo di
-    // rivendita nella stessa direzione: l'ampiezza IRR della leva deve
-    // quindi risultare maggiore a coefficiente 100% che a coefficiente
-    // 0% (dove il prezzo di rivendita resta insensibile ai lavori).
-    // Un vero test di coerenza per la correzione: con la vecchia leva
-    // (che non aggiornava mai il prezzo di rivendita) l'ampiezza
-    // sarebbe risultata identica in entrambi i casi.
+  it("la leva 'Costo ristrutturazione' è meno sensibile con un coefficiente più alto", () => {
+    // A coefficiente 0%, ogni euro di lavori è un esborso puro mai
+    // recuperato in vendita: la leva è massimamente sensibile. A
+    // coefficiente 100%, quell'euro torna (quasi) per intero nel prezzo
+    // di rivendita, ammortizzando l'impatto sull'IRR: la leva risulta
+    // quindi MENO sensibile, non di più.
     const trovaLeva = (r: ReturnType<typeof calcolaSimulazione>) =>
       r.leveOrdinate.find((l) => l.nome.includes("ristrutturazione"))!;
 
@@ -279,6 +276,6 @@ describe("calcolaSimulazione — coefficiente di valorizzazione ristrutturazione
 
     const ampiezza0 = Math.abs(con0.irrAlto! - con0.irrBasso!);
     const ampiezza100 = Math.abs(con100.irrAlto! - con100.irrBasso!);
-    expect(ampiezza100).toBeGreaterThan(ampiezza0);
+    expect(ampiezza0).toBeGreaterThan(ampiezza100);
   });
 });

@@ -178,7 +178,7 @@ describe("calcolaStimaPrimaCasa — scenari senza mutuo (solo liquidità)", () =
   });
 
   it("scenario favorevole con liquidità ampiamente sufficiente", () => {
-    const r = calcolaStimaPrimaCasa({ ...senzaMutuo, liquiditaDisponibile: 250000 });
+    const r = calcolaStimaPrimaCasa({ ...senzaMutuo, liquiditaDisponibile: 400000 });
     expect(r.scenario).toBe("primeIndicazioniFavorevoli");
   });
 

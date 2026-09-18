@@ -40,9 +40,6 @@ const base: ParametriSimulazione = {
   visureNotaioPersonalizzate: "",
   tassaArchivioPersonalizzata: "",
   tariffaTariPersonalizzata: "",
-  energiaElettricaPersonalizzata: "",
-  gasPersonalizzato: "",
-  internetPersonalizzato: "",
   condominioAnnuoPersonalizzato: "",
   manutenzioneOrdinariaPersonalizzata: "",
   manutenzioneStraordinariaPersonalizzata: "",
@@ -51,6 +48,7 @@ const base: ParametriSimulazione = {
   ristrutturazione: 0,
   arredamento: 0,
   tassoBenchmarkPersonalizzato: "",
+  coefficienteValorizzazioneRistrutturazionePersonalizzato: "",
 };
 
 function irrA(parametri: ParametriSimulazione): number | null {
