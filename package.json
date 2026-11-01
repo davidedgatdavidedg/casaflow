@@ -14,7 +14,6 @@
     "@neondatabase/serverless": "^1.1.0",
     "drizzle-orm": "^0.45.2",
     "exceljs": "^4.4.0",
-    "git": "^0.1.5",
     "next": "16.3.3",
     "react": "19.2.8",
     "react-dom": "19.2.8",

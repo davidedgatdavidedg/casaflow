@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Fraunces, Inter, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
@@ -24,6 +25,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           className={`${fraunces.variable} ${inter.variable} ${plexMono.variable} antialiased`}
         >
           {children}
+          <footer className="border-t border-[var(--rule)] bg-[var(--ink)] px-6 py-4 text-center text-xs text-[var(--muted)]">
+            <Link href="/privacy" className="hover:text-[var(--brass)] hover:underline">
+              Informativa sulla privacy
+            </Link>
+          </footer>
         </body>
       </html>
     </ClerkProvider>
