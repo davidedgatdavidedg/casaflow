@@ -29,6 +29,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <Link href="/privacy" className="hover:text-[var(--brass)] hover:underline">
               Informativa sulla privacy
             </Link>
+            <span className="mx-3" aria-hidden="true">·</span>
+            <Link href="/disclaimer" className="hover:text-[var(--brass)] hover:underline">
+              Limiti delle simulazioni
+            </Link>
           </footer>
         </body>
       </html>

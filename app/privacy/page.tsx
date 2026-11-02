@@ -2,7 +2,7 @@
 import Link from "next/link";
 import LogoCasaFlow from "@/components/logo-casaflow";
 
-const LAST_UPDATED = "1 novembre 2026";
+const LAST_UPDATED = "2 novembre 2026";
 
 const headingClass = "mb-2 font-medium text-[var(--brass)]";
 
@@ -155,11 +155,9 @@ export default function PaginaPrivacy() {
               Le simulazioni salvate sono conservate per consentirne la consultazione
               finché l&apos;utente utilizza il servizio, salvo richiesta di cancellazione
               e salvi eventuali obblighi di legge. I dati dell&apos;account sono
-              gestiti tramite Clerk. La cancellazione dell&apos;account in Clerk
-              non comporta attualmente la cancellazione automatica delle simulazioni
-              presenti nel database Neon: per richiedere anche la rimozione di questi
-              dati è necessario contattare il titolare all&apos;indirizzo indicato sotto.
-              I dati tecnici e i log sono conservati per il tempo necessario alle
+              gestiti tramite Clerk. Quando l&apos;account viene eliminato, le
+              simulazioni salvate nel database Neon vengono cancellate
+              automaticamente. I dati tecnici e i log sono conservati per il tempo necessario alle
               finalità operative e di sicurezza, in base alle configurazioni e alle
               politiche applicabili ai servizi utilizzati.
             </p>
@@ -216,9 +214,8 @@ export default function PaginaPrivacy() {
               protezione dei dati personali (<a className="text-[var(--brass)] hover:underline" href="https://www.garanteprivacy.it/">www.garanteprivacy.it</a>).
             </p>
             <p className="mt-2">
-              Per esercitare i tuoi diritti, inclusa la richiesta di cancellazione
-              delle simulazioni conservate su Neon anche dopo l&apos;eliminazione
-              dell&apos;account Clerk, scrivi a
+              Per esercitare i tuoi diritti, inclusa la cancellazione dell&apos;account
+              e delle simulazioni salvate, scrivi a
               {" "}<a className="text-[var(--brass)] hover:underline" href="mailto:davidedg@davidedg.net">davidedg@davidedg.net</a>.
               Alcuni dati potrebbero dover essere conservati nei limiti previsti
               dalla legge.

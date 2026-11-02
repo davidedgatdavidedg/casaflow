@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
+import DisclaimerSimulazione from "@/components/disclaimer-simulazione";
 import LogoCasaFlow from "@/components/logo-casaflow";
 import { Show, SignInButton, useAuth } from "@clerk/nextjs";
 import { InputNumeroMigliaia, ToggleSiNo } from "@/components/form-ui";
@@ -491,6 +492,8 @@ export default function WizardInvestimento() {
                 {risultato.giudizio.descrizione}
               </p>
             </div>
+
+            <DisclaimerSimulazione tipo="investimento" className="mt-5" />
 
             <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="rounded-sm border border-[var(--rule)] bg-[var(--surface)] p-4">

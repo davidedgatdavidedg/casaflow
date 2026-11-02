@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
+import DisclaimerSimulazione from "@/components/disclaimer-simulazione";
 import LogoCasaFlow from "@/components/logo-casaflow";
 import { Show, SignInButton, useAuth } from "@clerk/nextjs";
 import { InputNumeroMigliaia, ToggleSiNo } from "@/components/form-ui";
@@ -622,6 +623,8 @@ function RisultatoPrimaCasa({
           </p>
         </div>
       )}
+
+      <DisclaimerSimulazione tipo="prima-casa" className="mt-5" />
 
       {risultato.sostenibilitaMensile && (
         <BoxRataReddito

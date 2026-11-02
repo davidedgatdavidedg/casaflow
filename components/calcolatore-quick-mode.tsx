@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import DisclaimerSimulazione from "@/components/disclaimer-simulazione";
 import LogoCasaFlow from "@/components/logo-casaflow";
 import { Show, SignInButton, UserButton, useAuth } from "@clerk/nextjs";
 import {
@@ -1488,6 +1489,8 @@ export default function CalcolatoreQuickMode() {
                 />
               </>
             )}
+
+          <DisclaimerSimulazione tipo="investimento" />
 
           <p className="text-xs leading-relaxed text-[var(--muted)]">
             IRR calcolato sui flussi di cassa reali dell&apos;intero
